@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'screens/auth/sign_up_screen.dart';
+import 'screens/auth/sign_in_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -14,21 +16,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
-      image: 'assets/images/onboarding 1.png',
+      image: 'assets/images/onboarding_1.png',
       frameImage: 'assets/images/frame 1.png',
       progress: 'assets/images/onboarding 1 progress.png',
       title: 'Choose the way that suits you, not just the shortest one.',
       subtitle: 'Smarter routes, safer rides, real-time insights.',
     ),
     OnboardingPage(
-      image: 'assets/images/onboarding 2.png',
+      image: 'assets/images/onboarding_2.png',
       frameImage: 'assets/images/frame 2.png',
       progress: 'assets/images/onboarding 2 progress.png',
       title: 'See your city come to life in real time.',
       subtitle: 'From parking to pollution, everything is one glance away.',
     ),
     OnboardingPage(
-      image: 'assets/images/onboarding 3.png',
+      image: 'assets/images/onboarding_3.png',
       frameImage: 'assets/images/frame 3.png',
       progress: 'assets/images/onboarding progress 3.png',
       title: 'Stay on track with live GPS based bus and rail updates.',
@@ -74,7 +76,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         elevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         actions: [
-          if (_currentPage < _pages.length)
+          if (_currentPage < _pages.length - 1)
             TextButton(
               onPressed: _skipToEnd,
               child: const Text(
@@ -105,12 +107,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         children: [
-          const Spacer(),
+          const SizedBox(height: 40),
           // Image
           Image.asset(
             page.image,
             height: 280,
             fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            isAntiAlias: true,
           ),
           const SizedBox(height: 60),
           // Title
@@ -144,11 +148,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Frame image (page indicator)
-              Image.asset(
-                page.frameImage,
-                height: 8,
-                fit: BoxFit.contain,
-              ),
+              Image.asset(page.frameImage, height: 8, fit: BoxFit.contain),
               // Next button
               GestureDetector(
                 onTap: _nextPage,
@@ -183,12 +183,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
         children: [
-          const Spacer(),
+          const SizedBox(height: 40),
           // Image
           Image.asset(
-            'assets/images/onboarding 4.png',
+            'assets/images/onboarding_4.png',
             height: 280,
             fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            isAntiAlias: true,
           ),
           const SizedBox(height: 60),
           // Title
@@ -209,7 +211,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             height: 56,
             child: ElevatedButton(
               onPressed: () {
-                // Navigate to create account
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFf5f6fa),
@@ -236,14 +241,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             height: 56,
             child: OutlinedButton(
               onPressed: () {
-                // Navigate to sign in
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignInScreen()),
+                );
               },
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF06d6a0),
-                side: const BorderSide(
-                  color: Color(0xFF06d6a0),
-                  width: 2,
-                ),
+                side: const BorderSide(color: Color(0xFF06d6a0), width: 2),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
