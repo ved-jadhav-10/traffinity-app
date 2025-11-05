@@ -298,7 +298,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   icon: Image.asset(
-                    'assets/images/inda_logo.png',
+                    'assets/images/google.png',
                     height: 24,
                     width: 24,
                   ),

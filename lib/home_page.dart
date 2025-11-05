@@ -24,18 +24,12 @@ class _HomePageState extends State<HomePage> {
         children: [
           // Map background - placeholder
           Container(
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-            ),
+            decoration: BoxDecoration(color: Colors.grey[300]),
             child: Center(
-              child: Icon(
-                Icons.map,
-                size: 100,
-                color: Colors.grey[400],
-              ),
+              child: Icon(Icons.map, size: 100, color: Colors.grey[400]),
             ),
           ),
-          
+
           // Top section with hamburger menu and greeting
           SafeArea(
             child: Padding(
@@ -52,16 +46,13 @@ class _HomePageState extends State<HomePage> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(
-                        Icons.menu,
-                        color: Color(0xFFf5f6fa),
-                      ),
+                      icon: const Icon(Icons.menu, color: Color(0xFFf5f6fa)),
                       onPressed: () {
                         // Open drawer/menu
                       },
                     ),
                   ),
-                  
+
                   // Greeting text
                   const Text(
                     'Hello, Babydriver',
@@ -72,13 +63,13 @@ class _HomePageState extends State<HomePage> {
                       color: Color(0xFF1c1c1c),
                     ),
                   ),
-                  
+
                   const SizedBox(width: 48), // Balance the layout
                 ],
               ),
             ),
           ),
-          
+
           // Bottom section with search bar
           Positioned(
             bottom: 0,
@@ -134,7 +125,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Bottom Navigation Bar
                 Container(
                   decoration: BoxDecoration(
@@ -144,32 +135,34 @@ class _HomePageState extends State<HomePage> {
                       topRight: Radius.circular(20),
                     ),
                   ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildNavItem(
-                            index: 0,
-                            image: 'assets/images/transport.png',
-                            label: 'Transport',
-                          ),
-                          _buildNavItem(
-                            index: 1,
-                            image: 'assets/images/logo.png',
-                            label: 'Traffinity',
-                          ),
-                          _buildNavItem(
-                            index: 2,
-                            image: 'assets/images/territory.png',
-                            label: 'Territory',
-                          ),
-                        ],
-                      ),
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 12,
+                      bottom: MediaQuery.of(context).padding.bottom > 0
+                          ? MediaQuery.of(context).padding.bottom
+                          : 12,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildNavItem(
+                          index: 0,
+                          image: 'assets/images/transport.png',
+                          label: 'Transport',
+                        ),
+                        _buildNavItem(
+                          index: 1,
+                          image: 'assets/images/logo.png',
+                          label: 'Traffinity',
+                        ),
+                        _buildNavItem(
+                          index: 2,
+                          image: 'assets/images/territory.png',
+                          label: 'Territory',
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -187,7 +180,7 @@ class _HomePageState extends State<HomePage> {
     required String label,
   }) {
     final isSelected = _selectedIndex == index;
-    
+
     return GestureDetector(
       onTap: () => _onItemTapped(index),
       child: Column(
@@ -197,7 +190,9 @@ class _HomePageState extends State<HomePage> {
             image,
             width: 32,
             height: 32,
-            color: isSelected ? const Color(0xFF06d6a0) : const Color(0xFFf5f6fa),
+            color: isSelected
+                ? const Color(0xFF06d6a0)
+                : const Color(0xFFf5f6fa),
           ),
           const SizedBox(height: 4),
           Text(
@@ -206,7 +201,9 @@ class _HomePageState extends State<HomePage> {
               fontFamily: 'Poppins',
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: isSelected ? const Color(0xFF06d6a0) : const Color(0xFFf5f6fa),
+              color: isSelected
+                  ? const Color(0xFF06d6a0)
+                  : const Color(0xFFf5f6fa),
             ),
           ),
         ],
