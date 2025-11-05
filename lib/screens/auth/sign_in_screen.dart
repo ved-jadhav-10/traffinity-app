@@ -68,11 +68,10 @@ class _SignInScreenState extends State<SignInScreen> {
       final success = await SupabaseService().signInWithGoogle();
       if (success && mounted) {
         // Navigate to home screen
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signed in with Google successfully!'),
-            backgroundColor: Color(0xFF06d6a0),
-          ),
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
         );
       }
     } catch (e) {

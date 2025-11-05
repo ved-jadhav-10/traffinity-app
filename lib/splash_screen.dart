@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'onboarding_screen.dart';
+import 'home_page.dart';
+import 'services/supabase_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,14 +15,25 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to onboarding page after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
-      }
-    });
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Wait for 3 seconds to show splash screen
+    await Future.delayed(const Duration(seconds: 3));
+
+    if (!mounted) return;
+
+    // Check if user is authenticated
+    final isAuthenticated = SupabaseService().isAuthenticated;
+
+    // Navigate based on authentication status
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) =>
+            isAuthenticated ? const HomePage() : const OnboardingScreen(),
+      ),
+    );
   }
 
   @override
@@ -32,11 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Logo image
-            Image.asset(
-              'assets/images/logo.png',
-              width: 180,
-              height: 180,
-            ),
+            Image.asset('assets/images/logo.png', width: 180, height: 180),
             const SizedBox(height: 40),
             // App name with custom font - "TRAF" in white, "FINITY" in green
             RichText(
@@ -65,24 +74,6 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Placeholder HomePage - replace this with your actual home page
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Traffinity'),
-        backgroundColor: const Color(0xFF06d6a0), // Green color
-      ),
-      body: const Center(
-        child: Text('Welcome to Traffinity!'),
       ),
     );
   }
