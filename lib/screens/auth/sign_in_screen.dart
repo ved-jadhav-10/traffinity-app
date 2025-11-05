@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:traffinity/services/supabase_service.dart';
 import 'package:traffinity/screens/auth/sign_up_screen.dart';
 import 'package:traffinity/screens/auth/phone_sign_in_screen.dart';
+import 'package:traffinity/home_page.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -38,12 +39,10 @@ class _SignInScreenState extends State<SignInScreen> {
 
       if (mounted) {
         // Navigate to home screen
-        // TODO: Replace with your home screen navigation
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signed in successfully!'),
-            backgroundColor: Color(0xFF06d6a0),
-          ),
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
         );
       }
     } catch (e) {

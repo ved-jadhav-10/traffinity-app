@@ -34,19 +34,33 @@ class _SplashScreenState extends State<SplashScreen> {
             // Logo image
             Image.asset(
               'assets/images/logo.png',
-              width: 200,
-              height: 200,
+              width: 180,
+              height: 180,
             ),
-            const SizedBox(height: 30),
-            // App name with custom font
-            const Text(
-              'TRAFFINITY',
-              style: TextStyle(
-                fontFamily: 'CormorantSC',
-                fontSize: 32,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF06d6a0), // Green color
-                letterSpacing: 4,
+            const SizedBox(height: 40),
+            // App name with custom font - "TRAF" in white, "FINITY" in green
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(
+                  fontFamily: 'CormorantSC',
+                  fontSize: 36,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 2,
+                ),
+                children: [
+                  TextSpan(
+                    text: 'TRAF',
+                    style: TextStyle(
+                      color: Color(0xFFf5f6fa), // White color
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'FINITY',
+                    style: TextStyle(
+                      color: Color(0xFF06d6a0), // Green color
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

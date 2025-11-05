@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:traffinity/services/supabase_service.dart';
+import 'package:traffinity/home_page.dart';
 import 'otp_verification_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -83,12 +84,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final success = await SupabaseService().signInWithGoogle();
       if (success && mounted) {
         // Navigate to home screen
-        // TODO: Replace with your home screen navigation
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Signed in with Google successfully!'),
-            backgroundColor: Color(0xFF06d6a0),
-          ),
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
         );
       }
     } catch (e) {

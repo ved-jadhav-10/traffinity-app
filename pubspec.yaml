@@ -60,6 +60,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  # Launcher icon generator
+  flutter_launcher_icons: ^0.13.1
+  # Native splash screen generator
+  flutter_native_splash: ^2.2.21
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -100,3 +104,19 @@ flutter:
         - asset: assets/fonts/Poppins-Regular.ttf
         - asset: assets/fonts/Poppins-Bold.ttf
           weight: 700
+
+# Configuration for generating launcher icons and native splash screen.
+# Run `flutter pub get` then:
+# flutter pub run flutter_launcher_icons:main
+# flutter pub run flutter_native_splash:create
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+
+flutter_native_splash:
+  color: "#1c1c1c"
+  image: "assets/images/logo.png"
+  android: true
+  ios: true
+  web: false
