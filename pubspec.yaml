@@ -61,6 +61,10 @@ dependencies:
   # HTTP client for TomTom API calls
   http: ^1.2.2
 
+  # Cache management for map tiles
+  flutter_cache_manager: ^3.4.1
+  cached_network_image: ^3.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

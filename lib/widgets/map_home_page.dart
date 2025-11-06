@@ -6,6 +6,7 @@ import 'dart:async';
 import '../services/supabase_service.dart';
 import '../services/tomtom_service.dart';
 import '../services/location_service.dart';
+import '../services/cached_tile_provider.dart';
 import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
 import '../screens/auth/sign_in_screen.dart';
@@ -54,7 +55,7 @@ class _MapHomePageState extends State<MapHomePage> {
   Future<void> _initializeMap() async {
     // Request location permissions
     bool hasPermission = await _locationService.checkAndRequestPermissions();
-    
+
     if (hasPermission) {
       // Get current location
       Position? position = await _locationService.getCurrentLocation();
@@ -92,7 +93,7 @@ class _MapHomePageState extends State<MapHomePage> {
 
   void _onSearchChanged(String query) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
-    
+
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
       if (query.isNotEmpty) {
         _performSearch(query);
@@ -177,11 +178,7 @@ class _MapHomePageState extends State<MapHomePage> {
           point: _selectedDestination!,
           width: 40,
           height: 40,
-          child: const Icon(
-            Icons.location_on,
-            color: Colors.red,
-            size: 40,
-          ),
+          child: const Icon(Icons.location_on, color: Colors.red, size: 40),
         ),
       );
     }
@@ -236,16 +233,10 @@ class _MapHomePageState extends State<MapHomePage> {
       if (point.longitude > maxLng) maxLng = point.longitude;
     }
 
-    final bounds = LatLngBounds(
-      LatLng(minLat, minLng),
-      LatLng(maxLat, maxLng),
-    );
+    final bounds = LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
 
     _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.all(50),
-      ),
+      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
     );
   }
 
@@ -277,10 +268,18 @@ class _MapHomePageState extends State<MapHomePage> {
 
   Widget _buildNearbyCategoriesSheet() {
     final categories = [
-      {'name': 'Gas Stations', 'icon': Icons.local_gas_station, 'query': 'petrol station'},
+      {
+        'name': 'Gas Stations',
+        'icon': Icons.local_gas_station,
+        'query': 'petrol station',
+      },
       {'name': 'Restaurants', 'icon': Icons.restaurant, 'query': 'restaurant'},
       {'name': 'Parking', 'icon': Icons.local_parking, 'query': 'parking'},
-      {'name': 'EV Charging', 'icon': Icons.ev_station, 'query': 'electric vehicle charging station'},
+      {
+        'name': 'EV Charging',
+        'icon': Icons.ev_station,
+        'query': 'electric vehicle charging station',
+      },
       {'name': 'ATMs', 'icon': Icons.atm, 'query': 'atm'},
       {'name': 'Hotels', 'icon': Icons.hotel, 'query': 'hotel'},
     ];
@@ -301,17 +300,22 @@ class _MapHomePageState extends State<MapHomePage> {
             ),
           ),
           const SizedBox(height: 20),
-          ...categories.map((cat) => ListTile(
-            leading: Icon(cat['icon'] as IconData, color: const Color(0xFF06d6a0)),
-            title: Text(
-              cat['name'] as String,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                color: Color(0xFFf5f6fa),
+          ...categories.map(
+            (cat) => ListTile(
+              leading: Icon(
+                cat['icon'] as IconData,
+                color: const Color(0xFF06d6a0),
               ),
+              title: Text(
+                cat['name'] as String,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+              onTap: () => Navigator.pop(context, cat['query']),
             ),
-            onTap: () => Navigator.pop(context, cat['query']),
-          )),
+          ),
         ],
       ),
     );
@@ -329,7 +333,7 @@ class _MapHomePageState extends State<MapHomePage> {
     if (results.isNotEmpty && mounted) {
       setState(() {
         _markers.clear();
-        
+
         // Add current location marker
         if (_currentLocation != null) {
           _markers.add(
@@ -409,7 +413,10 @@ class _MapHomePageState extends State<MapHomePage> {
                     onPressed: () {
                       Navigator.pop(context);
                       setState(() {
-                        _selectedDestination = LatLng(place.latitude, place.longitude);
+                        _selectedDestination = LatLng(
+                          place.latitude,
+                          place.longitude,
+                        );
                         _searchController.text = place.name;
                       });
                       _updateMarkers();
@@ -528,7 +535,9 @@ class _MapHomePageState extends State<MapHomePage> {
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () async {
-                              await _supabaseService.removeFavoriteLocation(fav['id']);
+                              await _supabaseService.removeFavoriteLocation(
+                                fav['id'],
+                              );
                               Navigator.pop(context);
                               _showFavorites();
                             },
@@ -649,15 +658,23 @@ class _MapHomePageState extends State<MapHomePage> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _currentLocation ?? const LatLng(40.7128, -74.0060),
+              initialCenter:
+                  _currentLocation ?? const LatLng(40.7128, -74.0060),
               initialZoom: 14.0,
               minZoom: 3.0,
               maxZoom: 18.0,
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
+                urlTemplate:
+                    'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
                 userAgentPackageName: 'com.traffinity.app',
+                // Use cached tile provider for faster loading
+                tileProvider: CachedTileProvider(),
+                // Keep tiles in memory for instant display
+                keepBuffer: 5,
+                // Preload tiles around visible area
+                panBuffer: 2,
               ),
               if (_routePoints.isNotEmpty)
                 PolylineLayer(
@@ -697,7 +714,10 @@ class _MapHomePageState extends State<MapHomePage> {
 
                   // Greeting
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1c1c1c),
                       borderRadius: BorderRadius.circular(20),
@@ -724,7 +744,10 @@ class _MapHomePageState extends State<MapHomePage> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.favorite, color: Color(0xFF06d6a0)),
+                          icon: const Icon(
+                            Icons.favorite,
+                            color: Color(0xFF06d6a0),
+                          ),
                           onPressed: _showFavorites,
                           tooltip: 'Favorites',
                         ),
@@ -738,7 +761,11 @@ class _MapHomePageState extends State<MapHomePage> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.logout, color: Color(0xFFf5f6fa), size: 20),
+                          icon: const Icon(
+                            Icons.logout,
+                            color: Color(0xFFf5f6fa),
+                            size: 20,
+                          ),
                           onPressed: _logout,
                           tooltip: 'Logout',
                         ),
@@ -790,7 +817,10 @@ class _MapHomePageState extends State<MapHomePage> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Color(0xFFf5f6fa)),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFFf5f6fa),
+                          ),
                           onPressed: _clearRoute,
                         ),
                       ],
@@ -904,7 +934,7 @@ class _MapHomePageState extends State<MapHomePage> {
                               : null,
                         ),
                       ),
-                      
+
                       // Search results
                       if (_searchResults.isNotEmpty)
                         Container(
@@ -955,26 +985,33 @@ class _MapHomePageState extends State<MapHomePage> {
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: _isLoadingRoute ? null : _getDirections,
+                              onPressed: _isLoadingRoute
+                                  ? null
+                                  : _getDirections,
                               icon: _isLoadingRoute
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Color(0xFF1c1c1c),
-                                        ),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF1c1c1c),
+                                            ),
                                       ),
                                     )
                                   : const Icon(Icons.directions),
                               label: Text(
-                                _isLoadingRoute ? 'Loading...' : 'Get Directions',
+                                _isLoadingRoute
+                                    ? 'Loading...'
+                                    : 'Get Directions',
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF06d6a0),
                                 foregroundColor: const Color(0xFF1c1c1c),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
