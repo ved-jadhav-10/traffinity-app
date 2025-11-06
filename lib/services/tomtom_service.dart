@@ -13,7 +13,11 @@ class TomTomService {
   final String _baseUrl = 'https://api.tomtom.com';
 
   // Search for locations with autocomplete
-  Future<List<SearchResult>> searchLocations(String query, {double? lat, double? lon}) async {
+  Future<List<SearchResult>> searchLocations(
+    String query, {
+    double? lat,
+    double? lon,
+  }) async {
     if (query.isEmpty) return [];
 
     try {
@@ -27,7 +31,9 @@ class TomTomService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final results = data['results'] as List;
-        return results.map((json) => SearchResult.fromTomTomJson(json)).toList();
+        return results
+            .map((json) => SearchResult.fromTomTomJson(json))
+            .toList();
       } else {
         throw Exception('Failed to search locations: ${response.statusCode}');
       }
@@ -37,16 +43,30 @@ class TomTomService {
     }
   }
 
-  // Calculate route between two points
+  // Calculate route between two points with optional waypoints
   Future<RouteInfo?> calculateRoute({
     required double startLat,
     required double startLon,
     required double endLat,
     required double endLon,
+    List<Map<String, dynamic>>? waypoints,
   }) async {
     try {
+      // Build route points string: start:waypoint1:waypoint2:end
+      String routePoints = '$startLat,$startLon';
+
+      // Add waypoints if any
+      if (waypoints != null && waypoints.isNotEmpty) {
+        for (var waypoint in waypoints) {
+          routePoints += ':${waypoint['lat']},${waypoint['lng']}';
+        }
+      }
+
+      // Add destination
+      routePoints += ':$endLat,$endLon';
+
       final url = Uri.parse(
-        '$_baseUrl/routing/1/calculateRoute/$startLat,$startLon:$endLat,$endLon/json'
+        '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
         '?key=$_apiKey&traffic=true&travelMode=car',
       );
 
@@ -56,12 +76,19 @@ class TomTomService {
         final data = json.decode(response.body);
         final route = data['routes'][0];
         final summary = route['summary'];
-        final legs = route['legs'][0];
-        final points = legs['points'] as List;
 
-        final coordinates = points.map((point) {
-          return LatLng(point['latitude'], point['longitude']);
-        }).toList();
+        // Collect all points from all legs
+        final legs = route['legs'] as List;
+        List<LatLng> coordinates = [];
+
+        for (var leg in legs) {
+          final points = leg['points'] as List;
+          coordinates.addAll(
+            points.map((point) {
+              return LatLng(point['latitude'], point['longitude']);
+            }).toList(),
+          );
+        }
 
         return RouteInfo(
           coordinates: coordinates,
@@ -96,9 +123,13 @@ class TomTomService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final results = data['results'] as List;
-        return results.map((json) => SearchResult.fromTomTomJson(json)).toList();
+        return results
+            .map((json) => SearchResult.fromTomTomJson(json))
+            .toList();
       } else {
-        throw Exception('Failed to search nearby places: ${response.statusCode}');
+        throw Exception(
+          'Failed to search nearby places: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('Error searching nearby places: $e');

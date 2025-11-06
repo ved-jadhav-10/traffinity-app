@@ -38,6 +38,9 @@ class _MapHomePageState extends State<MapHomePage> {
   int _selectedIndex = 1;
   bool _showRouteInfo = false;
   bool _isMapInitialized = false;
+  String _startLocationName = 'My Location';
+  String _destinationLocationName = '';
+  List<Map<String, dynamic>> _waypoints = []; // List of stops (C, D, etc.)
 
   @override
   void initState() {
@@ -134,7 +137,10 @@ class _MapHomePageState extends State<MapHomePage> {
     }
   }
 
-  Future<void> _selectSearchResult(SearchResult result) async {
+  Future<void> _selectSearchResult(
+    SearchResult result, {
+    bool isEditingStart = false,
+  }) async {
     // Save to recent searches
     await _supabaseService.addRecentSearch(
       query: _searchController.text,
@@ -144,53 +150,133 @@ class _MapHomePageState extends State<MapHomePage> {
       address: result.address,
     );
 
-    setState(() {
-      _selectedDestination = LatLng(result.latitude, result.longitude);
-      _searchResults = [];
-      _searchController.text = result.name;
-      _showRouteInfo = true;
-    });
+    if (isEditingStart) {
+      // Editing start location (A)
+      setState(() {
+        _currentLocation = LatLng(result.latitude, result.longitude);
+        _startLocationName = result.name;
+        _searchResults = [];
+        _searchController.clear();
+      });
 
-    // Add destination marker
-    _updateMarkers();
+      // Update markers and recalculate route if destination exists
+      _updateMarkers();
+      if (_selectedDestination != null) {
+        await _getDirections();
+      }
+    } else {
+      // Setting destination (B)
+      setState(() {
+        _selectedDestination = LatLng(result.latitude, result.longitude);
+        _searchResults = [];
+        _searchController.text = result.name;
+        _showRouteInfo = true;
+        _destinationLocationName = result.name;
+      });
 
-    // Move map to show destination
-    _mapController.move(_selectedDestination!, 14.0);
+      // Add destination marker
+      _updateMarkers();
 
-    // Clear search focus
-    FocusScope.of(context).unfocus();
+      // Move map to show destination
+      _mapController.move(_selectedDestination!, 14.0);
 
-    // Automatically calculate route
-    await _getDirections();
+      // Clear search focus
+      FocusScope.of(context).unfocus();
+
+      // Automatically calculate route
+      await _getDirections();
+    }
   }
 
   void _updateMarkers() {
     _markers.clear();
 
-    // Add current location marker
+    // Add start location marker with number 1
     if (_currentLocation != null) {
       _markers.add(
         Marker(
           point: _currentLocation!,
-          width: 40,
-          height: 40,
-          child: const Icon(
-            Icons.my_location,
-            color: Color(0xFF06d6a0),
-            size: 40,
+          width: 28,
+          height: 28,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF06d6a0),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: const Center(
+              child: Text(
+                '1',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           ),
         ),
       );
     }
 
-    // Add destination marker
+    // Add waypoint markers with numbers 2, 3, 4, etc.
+    for (int i = 0; i < _waypoints.length; i++) {
+      final waypoint = _waypoints[i];
+      _markers.add(
+        Marker(
+          point: LatLng(waypoint['lat'], waypoint['lng']),
+          width: 28,
+          height: 28,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFffa726),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Center(
+              child: Text(
+                '${i + 2}', // Start from 2 since 1 is the start location
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Add destination marker with final number
     if (_selectedDestination != null) {
+      final finalNumber =
+          2 + _waypoints.length; // 1 (start) + waypoints + destination
       _markers.add(
         Marker(
           point: _selectedDestination!,
-          width: 40,
-          height: 40,
-          child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+          width: 28,
+          height: 28,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFf54748),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Center(
+              child: Text(
+                '$finalNumber',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -211,6 +297,7 @@ class _MapHomePageState extends State<MapHomePage> {
       startLon: _currentLocation!.longitude,
       endLat: _selectedDestination!.latitude,
       endLon: _selectedDestination!.longitude,
+      waypoints: _waypoints.isNotEmpty ? _waypoints : null,
     );
 
     if (route != null && mounted) {
@@ -219,6 +306,9 @@ class _MapHomePageState extends State<MapHomePage> {
         _routePoints = route.coordinates;
         _isLoadingRoute = false;
       });
+
+      // Update markers after route calculation
+      _updateMarkers();
 
       // Fit bounds to show entire route
       _fitRouteBounds();
@@ -248,7 +338,15 @@ class _MapHomePageState extends State<MapHomePage> {
     final bounds = LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
 
     _mapController.fitCamera(
-      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.only(
+          top: 200, // Account for location bar
+          bottom: 250, // Account for bottom slider
+          left: 50,
+          right: 50,
+        ),
+      ),
     );
   }
 
@@ -581,6 +679,8 @@ class _MapHomePageState extends State<MapHomePage> {
       _routePoints = [];
       _currentRoute = null;
       _selectedDestination = null;
+      _destinationLocationName = '';
+      _waypoints.clear(); // Clear all waypoints
       _searchController.clear();
       _showRouteInfo = false;
       _updateMarkers();
@@ -598,7 +698,7 @@ class _MapHomePageState extends State<MapHomePage> {
   }
 
   // Show search bottom sheet
-  void _showSearchSheet() {
+  void _showSearchSheet({bool isEditingStart = false}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -749,7 +849,10 @@ class _MapHomePageState extends State<MapHomePage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 onTap: () {
-                                  _selectSearchResult(result);
+                                  _selectSearchResult(
+                                    result,
+                                    isEditingStart: isEditingStart,
+                                  );
                                   Navigator.pop(context);
                                 },
                               );
@@ -995,7 +1098,7 @@ class _MapHomePageState extends State<MapHomePage> {
                   children: [
                     TileLayer(
                       urlTemplate:
-                          'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
+                          'https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
                       userAgentPackageName: 'com.traffinity.app',
                       // Use cached tile provider for faster loading
                       tileProvider: CachedTileProvider(),
@@ -1038,127 +1141,324 @@ class _MapHomePageState extends State<MapHomePage> {
                   ),
                 ),
 
-          // Top section - Google Maps style search bar
+          // Top section - Show search bar OR A-B location bar based on route state
           SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Search bar
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1c1c1c),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        // Search icon
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(
-                            Icons.search,
-                            color: Color(0xFF06d6a0),
-                            size: 24,
+                // Show A-B location bar when route is active
+                if (_currentRoute != null)
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1c1c1c),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-
-                        // Search input
-                        Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              // Open search bottom sheet
-                              _showSearchSheet();
-                            },
-                            child: Container(
-                              height: 56,
-                              alignment: Alignment.centerLeft,
-                              child: const Text(
-                                'Search location',
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 16,
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Header with close button
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
                                   color: Color(0xFF9e9e9e),
+                                  size: 18,
+                                ),
+                                onPressed: _clearRoute,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
+                          ),
+
+                          // Current Location (Start)
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.my_location,
+                                color: Color(0xFF06d6a0),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    // Allow editing start location
+                                    _showSearchSheet(isEditingStart: true);
+                                  },
+                                  child: Text(
+                                    _startLocationName,
+                                    style: const TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 13,
+                                      color: Color(0xFFf5f6fa),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Waypoints (stops) - if any
+                          ..._waypoints.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            Map<String, dynamic> waypoint = entry.value;
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6.0),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.location_on,
+                                    color: Color(0xFFffa726),
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      waypoint['name'],
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 13,
+                                        color: Color(0xFFf5f6fa),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  // Move up button (always enabled - can swap with start)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.arrow_upward,
+                                      color: Color(0xFF9e9e9e),
+                                      size: 18,
+                                    ),
+                                    onPressed: () => _moveWaypointUp(idx),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  // Move down button (always enabled - can swap with destination)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.arrow_downward,
+                                      color: Color(0xFF9e9e9e),
+                                      size: 18,
+                                    ),
+                                    onPressed: () => _moveWaypointDown(idx),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  // Remove button
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Color(0xFF9e9e9e),
+                                      size: 18,
+                                    ),
+                                    onPressed: () => _removeWaypoint(idx),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+
+                          // Destination
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on,
+                                color: Color(0xFFf54748),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _destinationLocationName,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 13,
+                                    color: Color(0xFFf5f6fa),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 8),
+                          const Divider(color: Color(0xFF3a3a3a), height: 1),
+                          const SizedBox(height: 6),
+
+                          // Add Stop button
+                          InkWell(
+                            onTap: _addWaypoint,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.add_circle_outline,
+                                    color: Color(0xFF06d6a0),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Add stop',
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 13,
+                                      color: Color(0xFF06d6a0),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  // Search bar (when no route)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1c1c1c),
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          // Search icon
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Icon(
+                              Icons.search,
+                              color: Color(0xFF06d6a0),
+                              size: 24,
+                            ),
+                          ),
+
+                          // Search input
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                // Open search bottom sheet
+                                _showSearchSheet();
+                              },
+                              child: Container(
+                                height: 56,
+                                alignment: Alignment.centerLeft,
+                                child: const Text(
+                                  'Search location',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 16,
+                                    color: Color(0xFF9e9e9e),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
 
-                        // Hamburger menu
-                        Container(
-                          margin: const EdgeInsets.only(right: 4),
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.menu,
-                              color: Color(0xFFf5f6fa),
-                              size: 24,
+                          // Hamburger menu
+                          Container(
+                            margin: const EdgeInsets.only(right: 4),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.menu,
+                                color: Color(0xFFf5f6fa),
+                                size: 24,
+                              ),
+                              onPressed: _showMenuDrawer,
+                              tooltip: 'Menu',
                             ),
-                            onPressed: _showMenuDrawer,
-                            tooltip: 'Menu',
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Horizontal category slider (only show when no route)
+                if (_currentRoute == null)
+                  Container(
+                    height: 50,
+                    margin: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildCategoryChip(
+                          icon: Icons.local_gas_station,
+                          label: 'Gas',
+                          onTap: () => _searchNearbyPlaces('petrol_station'),
                         ),
+                        _buildCategoryChip(
+                          icon: Icons.restaurant,
+                          label: 'Restaurants',
+                          onTap: () => _searchNearbyPlaces('restaurant'),
+                        ),
+                        _buildCategoryChip(
+                          icon: Icons.ev_station,
+                          label: 'EV Charging',
+                          onTap: () =>
+                              _searchNearbyPlaces('electric_vehicle_station'),
+                        ),
+                        _buildCategoryChip(
+                          icon: Icons.local_parking,
+                          label: 'Parking',
+                          onTap: () => _searchNearbyPlaces('parking'),
+                        ),
+                        _buildCategoryChip(
+                          icon: Icons.hotel,
+                          label: 'Hotels',
+                          onTap: () => _searchNearbyPlaces('hotel'),
+                        ),
+                        _buildCategoryChip(
+                          icon: Icons.local_atm,
+                          label: 'ATMs',
+                          onTap: () => _searchNearbyPlaces('atm'),
+                        ),
+                        _buildCategoryChip(
+                          icon: Icons.local_hospital,
+                          label: 'Hospitals',
+                          onTap: () => _searchNearbyPlaces('hospital'),
+                        ),
+                        const SizedBox(width: 16), // End padding
                       ],
                     ),
                   ),
-                ),
-
-                // Horizontal category slider (Google Maps style)
-                Container(
-                  height: 50,
-                  margin: const EdgeInsets.only(left: 16, bottom: 8),
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildCategoryChip(
-                        icon: Icons.local_gas_station,
-                        label: 'Gas',
-                        onTap: () => _searchNearbyPlaces('petrol_station'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.restaurant,
-                        label: 'Restaurants',
-                        onTap: () => _searchNearbyPlaces('restaurant'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.ev_station,
-                        label: 'EV Charging',
-                        onTap: () =>
-                            _searchNearbyPlaces('electric_vehicle_station'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.local_parking,
-                        label: 'Parking',
-                        onTap: () => _searchNearbyPlaces('parking'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.hotel,
-                        label: 'Hotels',
-                        onTap: () => _searchNearbyPlaces('hotel'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.local_atm,
-                        label: 'ATMs',
-                        onTap: () => _searchNearbyPlaces('atm'),
-                      ),
-                      _buildCategoryChip(
-                        icon: Icons.local_hospital,
-                        label: 'Hospitals',
-                        onTap: () => _searchNearbyPlaces('hospital'),
-                      ),
-                      const SizedBox(width: 16), // End padding
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -1188,75 +1488,317 @@ class _MapHomePageState extends State<MapHomePage> {
             ),
           ),
 
-          // Route info card (when route is calculated)
+          // Scrollable bottom slider with route info (when route is calculated)
           if (_currentRoute != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 120,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1c1c1c),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            DraggableScrollableSheet(
+              initialChildSize: 0.35,
+              minChildSize: 0.35,
+              maxChildSize: 0.85,
+              builder: (BuildContext context, ScrollController scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1c1c1c),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Route Information',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFf5f6fa),
+                  ),
+                  child: ListView(
+                    controller: scrollController,
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 80,
+                    ),
+                    children: [
+                      // Drag handle
+                      Center(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 12),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3a3a3a),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close,
-                            color: Color(0xFFf5f6fa),
+                      ),
+
+                      // Section 1: ETA, Arrival Time, and Action Buttons
+                      Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2a2a2a),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF3a3a3a),
+                            width: 1,
                           ),
-                          onPressed: _clearRoute,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildRouteInfoItem(
-                          Icons.straighten,
-                          _currentRoute!.formattedDistance,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _currentRoute!.formattedTime,
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF06d6a0),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _currentRoute!.formattedDistance,
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                        color: Color(0xFF9e9e9e),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time,
+                                          color: Color(0xFF9e9e9e),
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Arrive at ${_getArrivalTime()}',
+                                          style: const TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 14,
+                                            color: Color(0xFF9e9e9e),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      _showDirectionsSheet();
+                                    },
+                                    icon: const Icon(Icons.list),
+                                    label: const Text('Directions'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFFf5f6fa),
+                                      side: const BorderSide(
+                                        color: Color(0xFF3a3a3a),
+                                        width: 1,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      // TODO: Start 3D navigation
+                                      _showSnackBar(
+                                        '3D Navigation coming soon!',
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF06d6a0),
+                                      foregroundColor: const Color(0xFF1c1c1c),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'START',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 20),
-                        _buildRouteInfoItem(
-                          Icons.access_time,
-                          _currentRoute!.formattedTime,
+                      ),
+
+                      // Section 2: Traffic Information and Analysis
+                      Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        const SizedBox(width: 20),
-                        _buildRouteInfoItem(
-                          Icons.traffic,
-                          _currentRoute!.trafficInfo,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2a2a2a),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF3a3a3a),
+                            width: 1,
+                          ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.traffic,
+                                  color:
+                                      _currentRoute!.trafficInfo
+                                          .toLowerCase()
+                                          .contains('heavy')
+                                      ? Colors.red
+                                      : _currentRoute!.trafficInfo
+                                            .toLowerCase()
+                                            .contains('moderate')
+                                      ? Colors.orange
+                                      : const Color(0xFF06d6a0),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Traffic Analysis',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFf5f6fa),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInfoRow(
+                              'Current Traffic',
+                              _currentRoute!.trafficInfo,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoRow(
+                              'Route Status',
+                              'Optimal route selected',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoRow(
+                              'Estimated Delay',
+                              'No significant delays',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Section 3: Territory Prompt
+                      Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF06d6a0), Color(0xFF05b48a)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.explore,
+                                  color: Color(0xFF1c1c1c),
+                                  size: 28,
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Explore Territory',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1c1c1c),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Discover new places, save your favorite routes, and explore your surroundings with Territory mode.',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 14,
+                                color: Color(0xFF1c1c1c),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  // TODO: Navigate to Territory section
+                                  _showSnackBar('Territory mode coming soon!');
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF1c1c1c),
+                                  side: const BorderSide(
+                                    color: Color(0xFF1c1c1c),
+                                    width: 2,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Check it out',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
 
-          // Bottom Navigation Bar (kept as is)
+          // Bottom Navigation Bar (always visible)
           Positioned(
             bottom: 0,
             left: 0,
@@ -1306,26 +1848,527 @@ class _MapHomePageState extends State<MapHomePage> {
     );
   }
 
-  Widget _buildRouteInfoItem(IconData icon, String text) {
-    return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF06d6a0), size: 18),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 12,
-                color: Color(0xFFf5f6fa),
+  // Waypoint management methods
+  void _addWaypoint() {
+    // Clear search controller before opening
+    _searchController.clear();
+    setState(() {
+      _searchResults = [];
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.9,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3a3a3a),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (query) {
+                        _onSearchChanged(query);
+                        setModalState(() {});
+                      },
+                      autofocus: true,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        color: Color(0xFFf5f6fa),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Search for a stop',
+                        hintStyle: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 16,
+                          color: Color(0xFF7a7a7a),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Color(0xFF06d6a0),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF2a2a2a),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _searchResults.isEmpty && !_isSearching
+                        ? const Center(
+                            child: Text(
+                              'Search for a location',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                color: Color(0xFF9e9e9e),
+                                fontSize: 16,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: _searchResults.length,
+                            itemBuilder: (context, index) {
+                              final result = _searchResults[index];
+                              return ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2a2a2a),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.location_on,
+                                    color: Color(0xFF06d6a0),
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  result.name,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    color: Color(0xFFf5f6fa),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  result.address,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    color: Color(0xFF9e9e9e),
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    _waypoints.add({
+                                      'name': result.name,
+                                      'lat': result.latitude,
+                                      'lng': result.longitude,
+                                    });
+                                    _searchResults = [];
+                                    _searchController.clear();
+                                  });
+                                  Navigator.pop(context);
+                                  _getDirections(); // Recalculate route with waypoint
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _moveWaypointUp(int index) {
+    if (index > 0) {
+      // Move waypoint up within waypoints list
+      setState(() {
+        final waypoint = _waypoints.removeAt(index);
+        _waypoints.insert(index - 1, waypoint);
+      });
+      // Recalculate route after a brief delay to ensure state is updated
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _getDirections();
+      });
+    } else if (index == 0 && _currentLocation != null) {
+      // Swap first waypoint with start location
+      setState(() {
+        final waypoint = _waypoints.removeAt(0);
+
+        // Save current start location as waypoint
+        _waypoints.insert(0, {
+          'lat': _currentLocation!.latitude,
+          'lng': _currentLocation!.longitude,
+          'name': _startLocationName,
+        });
+
+        // Set waypoint as new start
+        _currentLocation = LatLng(waypoint['lat'], waypoint['lng']);
+        _startLocationName = waypoint['name'];
+      });
+      // Recalculate route after a brief delay
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _getDirections();
+      });
+    }
+  }
+
+  void _moveWaypointDown(int index) {
+    if (index < _waypoints.length - 1) {
+      // Move waypoint down within waypoints list
+      setState(() {
+        final waypoint = _waypoints.removeAt(index);
+        _waypoints.insert(index + 1, waypoint);
+      });
+      // Recalculate route after a brief delay to ensure state is updated
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _getDirections();
+      });
+    } else if (index == _waypoints.length - 1 && _selectedDestination != null) {
+      // Swap last waypoint with destination
+      setState(() {
+        final waypoint = _waypoints.removeAt(_waypoints.length - 1);
+
+        // Save current destination as waypoint
+        _waypoints.add({
+          'lat': _selectedDestination!.latitude,
+          'lng': _selectedDestination!.longitude,
+          'name': _destinationLocationName,
+        });
+
+        // Set waypoint as new destination
+        _selectedDestination = LatLng(waypoint['lat'], waypoint['lng']);
+        _destinationLocationName = waypoint['name'];
+      });
+      // Recalculate route after a brief delay
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _getDirections();
+      });
+    }
+  }
+
+  void _removeWaypoint(int index) {
+    setState(() {
+      _waypoints.removeAt(index);
+    });
+    _getDirections(); // Recalculate route
+  }
+
+  void _swapStartAndDestination() {
+    if (_currentLocation != null && _selectedDestination != null) {
+      setState(() {
+        // Swap locations
+        final tempLocation = _currentLocation;
+        _currentLocation = _selectedDestination;
+        _selectedDestination = tempLocation;
+
+        // Swap names
+        final tempName = _startLocationName;
+        _startLocationName = _destinationLocationName;
+        _destinationLocationName = tempName;
+      });
+      // Recalculate route after swap
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _getDirections();
+      });
+    }
+  }
+
+  void _showDirectionsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1c1c1c),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3a3a3a),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Step-by-Step Directions',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFf5f6fa),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF9e9e9e)),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Route summary
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2a2a2a),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Column(
+                      children: [
+                        Text(
+                          _currentRoute!.formattedTime,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF06d6a0),
+                          ),
+                        ),
+                        const Text(
+                          'Duration',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            color: Color(0xFF9e9e9e),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: 1,
+                      height: 40,
+                      color: const Color(0xFF3a3a3a),
+                    ),
+                    Column(
+                      children: [
+                        Text(
+                          _currentRoute!.formattedDistance,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF06d6a0),
+                          ),
+                        ),
+                        const Text(
+                          'Distance',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            color: Color(0xFF9e9e9e),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Directions list (placeholder for now)
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _buildDirectionStep(
+                      icon: Icons.my_location,
+                      instruction: 'Start at $_startLocationName',
+                      distance: '',
+                    ),
+                    _buildDirectionStep(
+                      icon: Icons.straight,
+                      instruction: 'Head toward your destination',
+                      distance: '0.5 km',
+                    ),
+                    _buildDirectionStep(
+                      icon: Icons.turn_right,
+                      instruction: 'Turn right',
+                      distance: '1.2 km',
+                    ),
+                    _buildDirectionStep(
+                      icon: Icons.straight,
+                      instruction: 'Continue straight',
+                      distance: '2.8 km',
+                    ),
+                    _buildDirectionStep(
+                      icon: Icons.location_on,
+                      instruction: 'Arrive at $_destinationLocationName',
+                      distance: '',
+                      isLast: true,
+                    ),
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDirectionStep({
+    required IconData icon,
+    required String instruction,
+    required String distance,
+    bool isLast = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isLast
+                      ? const Color(0xFFf54748)
+                      : const Color(0xFF06d6a0),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 30,
+                  color: const Color(0xFF3a3a3a),
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  instruction,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 15,
+                    color: Color(0xFFf5f6fa),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (distance.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Text(
+                      distance,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        color: Color(0xFF9e9e9e),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  String _getArrivalTime() {
+    if (_currentRoute == null) return '';
+
+    // Parse duration from formatted time (e.g., "25 min" or "1 hr 30 min")
+    final timeStr = _currentRoute!.formattedTime;
+    int totalMinutes = 0;
+
+    // Extract hours and minutes
+    final hourMatch = RegExp(r'(\d+)\s*hr').firstMatch(timeStr);
+    final minMatch = RegExp(r'(\d+)\s*min').firstMatch(timeStr);
+
+    if (hourMatch != null) {
+      totalMinutes += int.parse(hourMatch.group(1)!) * 60;
+    }
+    if (minMatch != null) {
+      totalMinutes += int.parse(minMatch.group(1)!);
+    }
+
+    // Add to current time
+    final arrivalTime = DateTime.now().add(Duration(minutes: totalMinutes));
+
+    // Format as "3:45 PM"
+    final hour = arrivalTime.hour > 12
+        ? arrivalTime.hour - 12
+        : arrivalTime.hour;
+    final period = arrivalTime.hour >= 12 ? 'PM' : 'AM';
+    final minute = arrivalTime.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute $period';
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            color: Color(0xFF9e9e9e),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFFf5f6fa),
+          ),
+        ),
+      ],
     );
   }
 
