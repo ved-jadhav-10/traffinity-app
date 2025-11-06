@@ -431,6 +431,28 @@ class _MapHomePageState extends State<MapHomePage> {
     );
   }
 
+  // Helper function to get icon path for each category
+  String _getCategoryIcon(String category) {
+    switch (category) {
+      case 'petrol_station':
+        return 'assets/images/petrol-pump.png';
+      case 'restaurant':
+        return 'assets/images/restaurant.png';
+      case 'electric_vehicle_station':
+        return 'assets/images/charging-station.png';
+      case 'parking':
+        return 'assets/images/parking.png';
+      case 'hotel':
+        return 'assets/images/hotel.png';
+      case 'atm':
+        return 'assets/images/atm.png';
+      case 'hospital':
+        return 'assets/images/hospital.png';
+      default:
+        return 'assets/images/atm.png'; // fallback icon
+    }
+  }
+
   Future<void> _searchNearbyPlaces(String category) async {
     if (_currentLocation == null) return;
 
@@ -465,14 +487,15 @@ class _MapHomePageState extends State<MapHomePage> {
           _markers.add(
             Marker(
               point: LatLng(result.latitude, result.longitude),
-              width: 30,
-              height: 30,
+              width: 35,
+              height: 35,
               child: GestureDetector(
                 onTap: () => _showPlaceInfo(result),
-                child: const Icon(
-                  Icons.location_on,
-                  color: Colors.blue,
-                  size: 30,
+                child: Image.asset(
+                  _getCategoryIcon(category),
+                  width: 35,
+                  height: 35,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
