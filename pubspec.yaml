@@ -62,8 +62,8 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   # Launcher icon generator
   flutter_launcher_icons: ^0.13.1
-  # Native splash screen generator
-  flutter_native_splash: ^2.2.21
+  # Native splash screen generator - temporarily removed due to Gradle compatibility
+  # flutter_native_splash: ^2.4.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
