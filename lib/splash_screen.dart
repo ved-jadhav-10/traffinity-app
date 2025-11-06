@@ -3,6 +3,7 @@ import 'dart:async';
 import 'onboarding_screen.dart';
 import 'home_page.dart';
 import 'services/supabase_service.dart';
+import 'services/location_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,6 +13,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final LocationService _locationService = LocationService();
+
   @override
   void initState() {
     super.initState();
@@ -19,8 +22,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Wait for 3 seconds to show splash screen
-    await Future.delayed(const Duration(seconds: 3));
+    // Start location permission check and fetching in parallel with splash timer
+    final locationFuture = _initializeLocation();
+    final timerFuture = Future.delayed(const Duration(seconds: 3));
+
+    // Wait for both to complete
+    await Future.wait([locationFuture, timerFuture]);
 
     if (!mounted) return;
 
@@ -34,6 +41,12 @@ class _SplashScreenState extends State<SplashScreen> {
             isAuthenticated ? const HomePage() : const OnboardingScreen(),
       ),
     );
+  }
+
+  Future<void> _initializeLocation() async {
+    // Request location permissions and get current location during splash
+    await _locationService.checkAndRequestPermissions();
+    await _locationService.getCurrentLocation();
   }
 
   @override
