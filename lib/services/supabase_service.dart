@@ -25,10 +25,10 @@ class SupabaseService {
   // Check if user exists by email
   Future<bool> checkUserExists(String email) async {
     try {
-      // Try to get user by email from auth.users (admin only) 
+      // Try to get user by email from auth.users (admin only)
       // Since we can't access admin API, we'll try sign in and catch the error
       // This is a workaround - a better approach would be to have a backend endpoint
-      
+
       // For now, we'll return true and let the sign-in handle the error
       // But we can query the profiles table if you have one
       final response = await client
@@ -36,7 +36,7 @@ class SupabaseService {
           .select('id')
           .eq('email', email)
           .maybeSingle();
-      
+
       return response != null;
     } catch (e) {
       // If profiles table doesn't exist or error occurs, we can't verify
@@ -179,6 +179,18 @@ class SupabaseService {
       final user = currentUser;
       if (user == null) return 'User';
 
+      // First, try to fetch from profiles table
+      final response = await client
+          .from('profiles')
+          .select('first_name')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (response != null && response['first_name'] != null) {
+        return response['first_name'] as String;
+      }
+
+      // Fallback to user metadata
       final metadata = user.userMetadata;
       if (metadata != null && metadata['first_name'] != null) {
         return metadata['first_name'] as String;
