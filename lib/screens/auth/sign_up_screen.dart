@@ -4,7 +4,9 @@ import 'package:traffinity/home_page.dart';
 import 'otp_verification_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  final String? initialEmail;
+  
+  const SignUpScreen({super.key, this.initialEmail});
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -22,6 +24,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String _selectedCountryCode = '+91';
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill email if provided
+    if (widget.initialEmail != null && widget.initialEmail!.isNotEmpty) {
+      _emailController.text = widget.initialEmail!;
+    }
+  }
 
   @override
   void dispose() {

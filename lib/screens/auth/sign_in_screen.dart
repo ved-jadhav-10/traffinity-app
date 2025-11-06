@@ -32,10 +32,15 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await SupabaseService().signInWithEmail(
+      final response = await SupabaseService().signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      // Check if user exists and is confirmed
+      if (response.user == null) {
+        throw Exception('No user returned from sign in');
+      }
 
       if (mounted) {
         // Navigate to home screen
@@ -47,12 +52,88 @@ class _SignInScreenState extends State<SignInScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final errorMessage = e.toString().toLowerCase();
+        print('Sign in error: $errorMessage'); // Debug log
+        
+        // Check if the error is due to user not found or invalid credentials
+        if (errorMessage.contains('invalid login credentials') ||
+            errorMessage.contains('invalid_credentials') ||
+            errorMessage.contains('user not found') ||
+            errorMessage.contains('email not confirmed') ||
+            errorMessage.contains('invalid email or password')) {
+          // Show dialog asking user to sign up
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF2a2a2a),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Account Not Found',
+                style: TextStyle(
+                  color: Color(0xFFf5f6fa),
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              content: const Text(
+                'It looks like you don\'t have an account yet. Would you like to sign up?',
+                style: TextStyle(
+                  color: Color(0xFFf5f6fa),
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF9e9e9e),
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SignUpScreen(
+                          initialEmail: _emailController.text.trim(),
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF06d6a0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Sign Up',
+                    style: TextStyle(
+                      color: Color(0xFF1c1c1c),
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Show generic error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sign in failed: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -67,12 +148,45 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final success = await SupabaseService().signInWithGoogle();
       if (success && mounted) {
-        // Navigate to home screen
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-          (route) => false,
-        );
+        // Check if this is a new user (just created by OAuth)
+        final user = SupabaseService().currentUser;
+        
+        if (user != null) {
+          // Check if profile exists in database
+          final profileExists = await _checkProfileExists(user.id);
+          
+          if (!profileExists) {
+            // New user - redirect to complete profile/sign up
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SignUpScreen(
+                    initialEmail: user.email ?? '',
+                  ),
+                ),
+              );
+              
+              // Show message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please complete your profile to continue'),
+                  backgroundColor: Color(0xFF06d6a0),
+                ),
+              );
+              return;
+            }
+          }
+        }
+        
+        // Existing user - navigate to home
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -87,6 +201,22 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<bool> _checkProfileExists(String userId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      return response != null;
+    } catch (e) {
+      print('Error checking profile: $e');
+      // If error, assume profile exists to avoid blocking
+      return true;
     }
   }
 
