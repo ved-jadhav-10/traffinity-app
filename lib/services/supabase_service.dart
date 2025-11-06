@@ -172,4 +172,187 @@ class SupabaseService {
 
   // Listen to auth state changes
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+
+  // Get user's first name
+  Future<String> getUserFirstName() async {
+    try {
+      final user = currentUser;
+      if (user == null) return 'User';
+
+      final metadata = user.userMetadata;
+      if (metadata != null && metadata['first_name'] != null) {
+        return metadata['first_name'] as String;
+      }
+
+      return 'User';
+    } catch (e) {
+      print('Error getting user first name: $e');
+      return 'User';
+    }
+  }
+
+  // =============== FAVORITE LOCATIONS ===============
+
+  // Add favorite location
+  Future<bool> addFavoriteLocation({
+    required String name,
+    required double latitude,
+    required double longitude,
+    String? address,
+    String? category,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      await client.from('favorite_locations').insert({
+        'user_id': user.id,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'address': address,
+        'category': category,
+      });
+
+      return true;
+    } catch (e) {
+      print('Error adding favorite location: $e');
+      return false;
+    }
+  }
+
+  // Get all favorite locations for current user
+  Future<List<Map<String, dynamic>>> getFavoriteLocations() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await client
+          .from('favorite_locations')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting favorite locations: $e');
+      return [];
+    }
+  }
+
+  // Remove favorite location
+  Future<bool> removeFavoriteLocation(String id) async {
+    try {
+      await client.from('favorite_locations').delete().eq('id', id);
+      return true;
+    } catch (e) {
+      print('Error removing favorite location: $e');
+      return false;
+    }
+  }
+
+  // Check if location is favorited
+  Future<bool> isLocationFavorited({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+
+      final response = await client
+          .from('favorite_locations')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('latitude', latitude)
+          .eq('longitude', longitude)
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      print('Error checking if location is favorited: $e');
+      return false;
+    }
+  }
+
+  // =============== RECENT SEARCHES ===============
+
+  // Add recent search
+  Future<bool> addRecentSearch({
+    required String query,
+    required String name,
+    required double latitude,
+    required double longitude,
+    String? address,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      // Check if search already exists
+      final existing = await client
+          .from('recent_searches')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('query', query)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update timestamp if exists
+        await client
+            .from('recent_searches')
+            .update({'created_at': DateTime.now().toIso8601String()})
+            .eq('id', existing['id']);
+      } else {
+        // Insert new search
+        await client.from('recent_searches').insert({
+          'user_id': user.id,
+          'query': query,
+          'name': name,
+          'latitude': latitude,
+          'longitude': longitude,
+          'address': address,
+        });
+      }
+
+      return true;
+    } catch (e) {
+      print('Error adding recent search: $e');
+      return false;
+    }
+  }
+
+  // Get recent searches for current user
+  Future<List<Map<String, dynamic>>> getRecentSearches({int limit = 10}) async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final response = await client
+          .from('recent_searches')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting recent searches: $e');
+      return [];
+    }
+  }
+
+  // Clear recent searches
+  Future<bool> clearRecentSearches() async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+
+      await client.from('recent_searches').delete().eq('user_id', user.id);
+      return true;
+    } catch (e) {
+      print('Error clearing recent searches: $e');
+      return false;
+    }
+  }
 }
