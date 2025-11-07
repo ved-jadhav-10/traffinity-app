@@ -36,7 +36,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
 
   StreamSubscription<NavigationState>? _navigationSubscription;
   StreamSubscription<String>? _voiceSubscription;
-  StreamSubscription? _compassSubscription;
+  StreamSubscription<CompassEvent>? _compassSubscription;
 
   NavigationState? _currentState;
   RouteInstruction? _currentInstruction;
@@ -62,7 +62,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     super.initState();
     _initializeTTS();
     _startNavigation();
-    _startCompass();
+    _initializeCompass();
     _startTrafficRefresh();
     _startWeatherRefresh();
   }
@@ -79,11 +79,11 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     super.dispose();
   }
 
-  void _startCompass() {
-    _compassSubscription = FlutterCompass.events?.listen((event) {
-      if (mounted && event.heading != null) {
+  void _initializeCompass() {
+    _compassSubscription = FlutterCompass.events?.listen((CompassEvent event) {
+      if (mounted) {
         setState(() {
-          _compassHeading = event.heading!;
+          _compassHeading = event.heading ?? 0.0;
         });
       }
     });
@@ -420,12 +420,38 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
                   ],
                 ),
               ),
-              
-              // Compass button (right side)
+
+              // Compass button (right side, above footer)
               Positioned(
                 right: 16,
                 bottom: 140,
-                child: _buildCompassButton(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1c1c1c),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    iconSize: 48,
+                    onPressed: _recenterMap,
+                    icon: Transform.rotate(
+                      angle: -_compassHeading * (math.pi / 180),
+                      child: Image.asset(
+                        'assets/icons/compass.png',
+                        width: 48,
+                        height: 48,
+                        color: const Color(0xFF06d6a0),
+                      ),
+                    ),
+                    tooltip: 'Compass - Recenter & Reset North',
+                  ),
+                ),
               ),
               
               // Bottom footer with stats only
@@ -441,62 +467,6 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
                 top: 16,
                 right: 16,
                 child: _buildCloseButton(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompassButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _recenterMap,
-        borderRadius: BorderRadius.circular(30),
-        child: Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2a2a2a).withOpacity(0.9),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppTheme.primaryGreen.withOpacity(0.3),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Compass rose background
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.primaryGreen.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-              // Rotating compass image
-              Transform.rotate(
-                angle: _compassHeading * (math.pi / 180),
-                child: Image.asset(
-                  'assets/icons/compass.png',
-                  width: 32,
-                  height: 32,
-                  color: AppTheme.primaryGreen,
-                ),
               ),
             ],
           ),
@@ -948,39 +918,6 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
               ],
             ),
           ],
-        ),
-
-        // Compass button for recentering (same style as incident map)
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1c1c1c),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              iconSize: 48,
-              onPressed: _recenterMap,
-              icon: Transform.rotate(
-                angle: -_compassHeading * (math.pi / 180),
-                child: Image.asset(
-                  'assets/icons/compass.png',
-                  width: 48,
-                  height: 48,
-                  color: const Color(0xFF06d6a0),
-                ),
-              ),
-              tooltip: 'Compass - Recenter & Reset North',
-            ),
-          ),
         ),
       ],
     );
