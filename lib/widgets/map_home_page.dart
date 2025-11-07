@@ -770,94 +770,24 @@ class _MapHomePageState extends State<MapHomePage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              place.name,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFf5f6fa),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              place.address,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                color: Color(0xFF9e9e9e),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _selectedDestination = LatLng(
-                          place.latitude,
-                          place.longitude,
-                        );
-                        _searchController.text = place.name;
-                        _destinationLocationName = place.name;
-                        _showRouteInfo = true;
-                      });
-                      _updateMarkers();
-                      _getDirections();
-                    },
-                    icon: const Icon(Icons.directions),
-                    label: const Text('Get Directions'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF06d6a0),
-                      foregroundColor: const Color(0xFF1c1c1c),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _addToFavorites(place);
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.favorite_border),
-                  label: const Text('Save'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2a2a2a),
-                    foregroundColor: const Color(0xFFf5f6fa),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      builder: (context) => _PlaceInfoBottomSheet(
+        place: place,
+        onGetDirections: () {
+          Navigator.pop(context);
+          setState(() {
+            _selectedDestination = LatLng(
+              place.latitude,
+              place.longitude,
+            );
+            _searchController.text = place.name;
+            _destinationLocationName = place.name;
+            _showRouteInfo = true;
+          });
+          _updateMarkers();
+          _getDirections();
+        },
       ),
     );
-  }
-
-  Future<void> _addToFavorites(SearchResult place) async {
-    final success = await _supabaseService.addFavoriteLocation(
-      name: place.name,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      address: place.address,
-      category: place.category,
-    );
-
-    if (success) {
-      _showSnackBar('Added to favorites');
-    } else {
-      _showSnackBar('Failed to add to favorites');
-    }
   }
 
   Future<void> _showFavorites() async {
@@ -2284,14 +2214,14 @@ class _MapHomePageState extends State<MapHomePage> {
               ],
             ),
             child: IconButton(
-              iconSize: 28,
+              iconSize: 48,
               onPressed: _resetMapRotation,
               icon: Transform.rotate(
                 angle: -_compassHeading * (math.pi / 180),
                 child: Image.asset(
                   'assets/icons/compass.png',
-                  width: 28,
-                  height: 28,
+                  width: 48,
+                  height: 48,
                   color: const Color(0xFF06d6a0),
                 ),
               ),
@@ -4300,6 +4230,158 @@ class _MapHomePageState extends State<MapHomePage> {
                   ? const Color(0xFF06d6a0)
                   : const Color(0xFFf5f6fa),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Place Info Bottom Sheet Widget
+class _PlaceInfoBottomSheet extends StatefulWidget {
+  final SearchResult place;
+  final VoidCallback onGetDirections;
+
+  const _PlaceInfoBottomSheet({
+    required this.place,
+    required this.onGetDirections,
+  });
+
+  @override
+  State<_PlaceInfoBottomSheet> createState() => _PlaceInfoBottomSheetState();
+}
+
+class _PlaceInfoBottomSheetState extends State<_PlaceInfoBottomSheet> {
+  final SupabaseService _supabaseService = SupabaseService();
+  bool _isFavorited = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfFavorited();
+  }
+
+  Future<void> _checkIfFavorited() async {
+    final favorited = await _supabaseService.isLocationFavorited(
+      latitude: widget.place.latitude,
+      longitude: widget.place.longitude,
+    );
+    
+    if (mounted) {
+      setState(() {
+        _isFavorited = favorited;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_isFavorited) {
+      // Remove from favorites
+      final success = await _supabaseService.removeFavoriteLocationByCoordinates(
+        latitude: widget.place.latitude,
+        longitude: widget.place.longitude,
+      );
+
+      if (success && mounted) {
+        setState(() => _isFavorited = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Removed from favorites'),
+            backgroundColor: Color(0xFFf54748),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      // Add to favorites
+      final success = await _supabaseService.addFavoriteLocation(
+        name: widget.place.name,
+        latitude: widget.place.latitude,
+        longitude: widget.place.longitude,
+        address: widget.place.address,
+      );
+
+      if (success && mounted) {
+        setState(() => _isFavorited = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Added to favorites!'),
+            backgroundColor: Color(0xFF06d6a0),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.place.name,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFf5f6fa),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.place.address,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Color(0xFF9e9e9e),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: widget.onGetDirections,
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Get Directions'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF06d6a0),
+                    foregroundColor: const Color(0xFF1c1c1c),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _toggleFavorite,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2a2a2a),
+                  foregroundColor: const Color(0xFFf5f6fa),
+                  padding: const EdgeInsets.all(12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFf5f6fa),
+                        ),
+                      )
+                    : Icon(
+                        _isFavorited ? Icons.favorite : Icons.favorite_border,
+                      ),
+              ),
+            ],
           ),
         ],
       ),

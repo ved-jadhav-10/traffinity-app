@@ -263,6 +263,29 @@ class SupabaseService {
     }
   }
 
+  // Remove favorite location by coordinates
+  Future<bool> removeFavoriteLocationByCoordinates({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+
+      await client
+          .from('favorite_locations')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('latitude', latitude)
+          .eq('longitude', longitude);
+
+      return true;
+    } catch (e) {
+      print('Error removing favorite location by coordinates: $e');
+      return false;
+    }
+  }
+
   // Check if location is favorited
   Future<bool> isLocationFavorited({
     required double latitude,
