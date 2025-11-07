@@ -53,7 +53,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
                 // Description
                 const Text(
-                  'Discover, explore, and save your favorite places and routes.',
+                  'Explore, discover more, check city updates, save memories and check what your friends are up to!',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,

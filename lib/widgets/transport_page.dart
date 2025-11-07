@@ -51,7 +51,7 @@ class _TransportPageState extends State<TransportPage> {
 
                 // Description
                 const Text(
-                  'Your hub for public transport, schedules, and travel planning.',
+                  'Track routes, monitor delays, and plan sustainable trips efficiently.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -65,31 +65,31 @@ class _TransportPageState extends State<TransportPage> {
                 _buildFeatureCard(
                   icon: Icons.directions_bus,
                   title: 'Public Transport',
-                  description: 'View bus, train, and metro routes in your area.',
+                  description: 'View bus, train and metro routes and schedules in your area.',
                   color: const Color(0xFF06d6a0),
                 ),
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
                   icon: Icons.schedule,
-                  title: 'Schedules & Timings',
-                  description: 'Check real-time schedules and arrival times.',
+                  title: 'Delay Alerts',
+                  description: 'Check for latest delays in your area.',
                   color: const Color(0xFF4a90e2),
                 ),
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.route,
-                  title: 'Multi-Modal Routes',
-                  description: 'Plan trips combining different transport modes.',
+                  icon: Icons.eco,
+                  title: 'Ride Tracker',
+                  description: 'Compare transportation methods to see your carbon footprint and money saved.',
                   color: const Color(0xFFffa726),
                 ),
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.local_taxi,
-                  title: 'Ride Options',
-                  description: 'Compare taxi, rideshare, and rental options.',
+                  icon: Icons.event_note,
+                  title: 'My Trips',
+                  description: 'Plan your trips and save them in a log.',
                   color: const Color(0xFFf54748),
                 ),
                 const SizedBox(height: 32),
