@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class TerritoryPage extends StatefulWidget {
-  const TerritoryPage({super.key});
+  final VoidCallback? onExploreNearby;
+
+  const TerritoryPage({super.key, this.onExploreNearby});
 
   @override
   State<TerritoryPage> createState() => _TerritoryPageState();
@@ -67,6 +69,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   title: 'Explore Nearby',
                   description: 'Discover interesting places around you.',
                   color: const Color(0xFF06d6a0),
+                  onTap: widget.onExploreNearby,
                 ),
                 const SizedBox(height: 16),
 
@@ -158,61 +161,64 @@ class _TerritoryPageState extends State<TerritoryPage> {
     required String title,
     required String description,
     required Color color,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2a2a2a),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF3a3a3a),
-          width: 1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2a2a2a),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFf5f6fa),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFf5f6fa),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: Color(0xFF9e9e9e),
-                    height: 1.4,
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      color: Color(0xFF9e9e9e),
+                      height: 1.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            if (onTap != null)
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Color(0xFF9e9e9e),
+                size: 16,
+              ),
+          ],
+        ),
       ),
     );
   }
