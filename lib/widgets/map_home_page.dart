@@ -9,6 +9,7 @@ import 'dart:math' as math;
 import '../services/supabase_service.dart';
 import '../services/tomtom_service.dart';
 import '../services/location_service.dart';
+import '../services/weather_service.dart';
 import '../services/cached_tile_provider.dart';
 import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
@@ -30,6 +31,7 @@ class _MapHomePageState extends State<MapHomePage> {
   final TomTomService _tomtomService = TomTomService();
   final LocationService _locationService = LocationService();
   final SupabaseService _supabaseService = SupabaseService();
+  final WeatherService _weatherService = WeatherService();
 
   LatLng? _currentLocation;
   LatLng? _selectedDestination;
@@ -37,6 +39,7 @@ class _MapHomePageState extends State<MapHomePage> {
   List<Marker> _markers = [];
   List<LatLng> _routePoints = [];
   RouteInfo? _currentRoute;
+  List<RouteInfo> _alternativeRoutes = [];
   bool _isSearching = false;
   bool _isLoadingRoute = false;
   String _userName = 'User';
@@ -47,6 +50,13 @@ class _MapHomePageState extends State<MapHomePage> {
   String _startLocationName = 'My Location';
   String _destinationLocationName = '';
   List<Map<String, dynamic>> _waypoints = []; // List of stops (C, D, etc.)
+  
+  // Weather and traffic data
+  WeatherData? _currentWeather;
+  WeatherData? _destinationWeather;
+  List<DepartureTimeOption> _departureTimeOptions = [];
+  bool _isLoadingWeather = false;
+  bool _isLoadingDepartureTimes = false;
 
   // Compass and speech-to-text
   double _compassHeading = 0.0;
@@ -402,9 +412,12 @@ class _MapHomePageState extends State<MapHomePage> {
 
     setState(() {
       _isLoadingRoute = true;
+      _isLoadingWeather = true;
+      _isLoadingDepartureTimes = true;
     });
 
-    final route = await _tomtomService.calculateRoute(
+    // First, fetch ONLY the optimal route to display immediately
+    final optimalRoute = await _tomtomService.calculateRoute(
       startLat: _currentLocation!.latitude,
       startLon: _currentLocation!.longitude,
       endLat: _selectedDestination!.latitude,
@@ -412,10 +425,11 @@ class _MapHomePageState extends State<MapHomePage> {
       waypoints: _waypoints.isNotEmpty ? _waypoints : null,
     );
 
-    if (route != null && mounted) {
+    if (optimalRoute != null && mounted) {
       setState(() {
-        _currentRoute = route;
-        _routePoints = route.coordinates;
+        _currentRoute = optimalRoute;
+        _alternativeRoutes = [optimalRoute]; // Start with just optimal route
+        _routePoints = optimalRoute.coordinates;
         _isLoadingRoute = false;
       });
 
@@ -424,11 +438,83 @@ class _MapHomePageState extends State<MapHomePage> {
 
       // Fit bounds to show entire route
       _fitRouteBounds();
+
+      // Now load everything else in the background (non-blocking)
+      _loadBackgroundData();
     } else {
       setState(() {
         _isLoadingRoute = false;
+        _isLoadingWeather = false;
+        _isLoadingDepartureTimes = false;
       });
       _showSnackBar('Failed to calculate route');
+    }
+  }
+
+  // Load alternative routes, weather, and departure times in background
+  Future<void> _loadBackgroundData() async {
+    if (_currentLocation == null || _selectedDestination == null) return;
+
+    // Fetch alternative routes (includes optimal route)
+    final routesFuture = _tomtomService.calculateAlternativeRoutes(
+      startLat: _currentLocation!.latitude,
+      startLon: _currentLocation!.longitude,
+      endLat: _selectedDestination!.latitude,
+      endLon: _selectedDestination!.longitude,
+      waypoints: _waypoints.isNotEmpty ? _waypoints : null,
+      maxAlternatives: 3,
+    );
+
+    // Fetch weather data for current location and destination
+    final currentWeatherFuture = _weatherService.getCurrentWeather(
+      _currentLocation!.latitude,
+      _currentLocation!.longitude,
+    );
+
+    final destinationWeatherFuture = _weatherService.getCurrentWeather(
+      _selectedDestination!.latitude,
+      _selectedDestination!.longitude,
+    );
+
+    // Fetch optimal departure times for next 6 hours
+    final departureTimesFuture = _tomtomService.calculateOptimalDepartureTimes(
+      startLat: _currentLocation!.latitude,
+      startLon: _currentLocation!.longitude,
+      endLat: _selectedDestination!.latitude,
+      endLon: _selectedDestination!.longitude,
+      hoursAhead: 6,
+    );
+
+    // Wait for all background data
+    final results = await Future.wait([
+      routesFuture,
+      currentWeatherFuture,
+      destinationWeatherFuture,
+      departureTimesFuture,
+    ]);
+
+    if (mounted) {
+      final routes = results[0] as List<RouteInfo>;
+      
+      if (routes.isNotEmpty) {
+        // Sort routes by travel time (optimal first)
+        routes.sort((a, b) => a.travelTimeInSeconds.compareTo(b.travelTimeInSeconds));
+        
+        setState(() {
+          _alternativeRoutes = routes; // Update with all routes
+          _currentWeather = results[1] as WeatherData?;
+          _destinationWeather = results[2] as WeatherData?;
+          _departureTimeOptions = results[3] as List<DepartureTimeOption>;
+          
+          _isLoadingWeather = false;
+          _isLoadingDepartureTimes = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingWeather = false;
+          _isLoadingDepartureTimes = false;
+        });
+      }
     }
   }
 
@@ -541,12 +627,14 @@ class _MapHomePageState extends State<MapHomePage> {
   String _getCategoryIcon(String category) {
     // Normalize category to lowercase for comparison
     final normalizedCategory = category.toLowerCase();
-    
-    if (normalizedCategory.contains('petrol') || normalizedCategory.contains('gas')) {
+
+    if (normalizedCategory.contains('petrol') ||
+        normalizedCategory.contains('gas')) {
       return 'assets/images/petrol-pump.png';
     } else if (normalizedCategory.contains('restaurant')) {
       return 'assets/images/restaurant.png';
-    } else if (normalizedCategory.contains('electric') || normalizedCategory.contains('charging')) {
+    } else if (normalizedCategory.contains('electric') ||
+        normalizedCategory.contains('charging')) {
       return 'assets/images/charging-station.png';
     } else if (normalizedCategory.contains('parking')) {
       return 'assets/images/parking.png';
@@ -565,10 +653,14 @@ class _MapHomePageState extends State<MapHomePage> {
     if (_currentLocation == null) return;
 
     List<SearchResult> results = [];
-    
+
     // For parking, search all three types and combine results
     if (category == 'parking') {
-      final parkingTypes = ['open parking area', 'parking garage', 'parking lot'];
+      final parkingTypes = [
+        'open parking area',
+        'parking garage',
+        'parking lot',
+      ];
       for (var parkingType in parkingTypes) {
         final typeResults = await _tomtomService.searchNearbyPlaces(
           lat: _currentLocation!.latitude,
@@ -577,7 +669,7 @@ class _MapHomePageState extends State<MapHomePage> {
         );
         results.addAll(typeResults);
       }
-    } 
+    }
     // For hotels, search all related types
     else if (category == 'hotel') {
       final hotelTypes = ['hotel', 'motel', 'resort', 'hostel'];
@@ -613,8 +705,7 @@ class _MapHomePageState extends State<MapHomePage> {
         );
         results.addAll(typeResults);
       }
-    }
-    else {
+    } else {
       results = await _tomtomService.searchNearbyPlaces(
         lat: _currentLocation!.latitude,
         lon: _currentLocation!.longitude,
@@ -2341,71 +2432,6 @@ class _MapHomePageState extends State<MapHomePage> {
                       ),
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2a2a2a),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFF3a3a3a),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.traffic,
-                                color:
-                                    _currentRoute!.trafficInfo
-                                        .toLowerCase()
-                                        .contains('heavy')
-                                    ? Colors.red
-                                    : _currentRoute!.trafficInfo
-                                          .toLowerCase()
-                                          .contains('moderate')
-                                    ? Colors.orange
-                                    : const Color(0xFF06d6a0),
-                                size: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'Traffic Analysis',
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFf5f6fa),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _buildInfoRow(
-                            'Current Traffic',
-                            _currentRoute!.trafficInfo,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildInfoRow(
-                            'Route Status',
-                            'Optimal route selected',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildInfoRow(
-                            'Estimated Delay',
-                            'No significant delays',
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Section 3: Territory Prompt
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF06d6a0), Color(0xFF05b48a)],
                           begin: Alignment.topLeft,
@@ -2416,59 +2442,68 @@ class _MapHomePageState extends State<MapHomePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(
-                                Icons.explore,
+                              const Icon(
+                                Icons.traffic,
                                 color: Color(0xFF1c1c1c),
-                                size: 28,
+                                size: 24,
                               ),
-                              SizedBox(width: 12),
-                              Text(
-                                'Explore Territory',
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Traffic Analysis',
                                 style: TextStyle(
                                   fontFamily: 'Poppins',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
                                   color: Color(0xFF1c1c1c),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Discover new places, save your favorite routes, and explore your surroundings with Territory mode.',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 14,
-                              color: Color(0xFF1c1c1c),
-                            ),
-                          ),
                           const SizedBox(height: 16),
+                          
+                          // Brief overview info rows
+                          _buildInfoRowGreen(
+                            'Current Traffic',
+                            _currentRoute!.overallTrafficLevel,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildInfoRowGreen(
+                            'Weather Impact',
+                            _getWeatherImpactSummary(),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildInfoRowGreen(
+                            'Time Saved',
+                            _getTimeSavedSummary(),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildInfoRowGreen(
+                            'Optimal Departure',
+                            _getOptimalDepartureSummary(),
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // More Details Button
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
-                              onPressed: () {
-                                // Navigate to Territory page
-                                setState(() {
-                                  _selectedIndex = 2;
-                                });
-                              },
+                              onPressed: _showTrafficDetailsSlider,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF1c1c1c),
                                 side: const BorderSide(
                                   color: Color(0xFF1c1c1c),
                                   width: 2,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                               child: const Text(
-                                'Check it out',
+                                'More Details',
                                 style: TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 16,
@@ -2961,32 +2996,965 @@ class _MapHomePageState extends State<MapHomePage> {
     // Format as "3:45 PM"
     final hour = arrivalTime.hour > 12
         ? arrivalTime.hour - 12
-        : arrivalTime.hour;
+        : (arrivalTime.hour == 0 ? 12 : arrivalTime.hour);
     final period = arrivalTime.hour >= 12 ? 'PM' : 'AM';
     final minute = arrivalTime.minute.toString().padLeft(2, '0');
 
     return '$hour:$minute $period';
   }
 
+  Color _getTrafficColor() {
+    if (_currentRoute == null) return const Color(0xFF06d6a0);
+    
+    final level = _currentRoute!.overallTrafficLevel.toLowerCase();
+    if (level.contains('severe')) return Colors.red.shade700;
+    if (level.contains('heavy')) return Colors.red;
+    if (level.contains('moderate')) return Colors.orange;
+    return const Color(0xFF06d6a0);
+  }
+
+  String _getWeatherImpactSummary() {
+    if (_isLoadingWeather) return 'Loading...';
+    if (_destinationWeather == null) return 'No data';
+    
+    final impact = _weatherService.calculateWeatherImpact(_destinationWeather!);
+    if (impact == 0) return 'No impact';
+    
+    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60).round();
+    return '+$impactMinutes min';
+  }
+
+  String _getTimeSavedSummary() {
+    if (_alternativeRoutes.length < 2) return 'N/A';
+    
+    // Compare with slowest alternative route
+    final slowestRoute = _alternativeRoutes.reduce(
+      (a, b) => a.travelTimeInSeconds > b.travelTimeInSeconds ? a : b,
+    );
+    
+    final timeSaved = (slowestRoute.travelTimeInSeconds - 
+        _currentRoute!.travelTimeInSeconds) ~/ 60;
+    
+    if (timeSaved <= 0) return 'Best route';
+    return '$timeSaved min';
+  }
+
+  String _getOptimalDepartureSummary() {
+    if (_isLoadingDepartureTimes) return 'Loading...';
+    if (_departureTimeOptions.isEmpty) return 'Leave now';
+    
+    // Find the option with minimum total time
+    final optimal = _departureTimeOptions.reduce(
+      (a, b) => a.totalTimeInSeconds < b.totalTimeInSeconds ? a : b,
+    );
+    
+    final now = DateTime.now();
+    final diff = optimal.departureTime.difference(now).inMinutes;
+    
+    if (diff <= 5) return 'Now';
+    if (diff <= 60) return 'In $diff min';
+    return optimal.formattedTime;
+  }
+
+  void _showTrafficDetailsSlider() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1c1c1c),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3a3a3a),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Detailed Traffic Analysis',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFf5f6fa),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Color(0xFFf5f6fa)),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Content
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // Alternative Routes Section
+                    _buildAlternativeRoutesSection(),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Weather Impact Section
+                    _buildWeatherImpactSection(),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Optimal Departure Time Section
+                    _buildOptimalDepartureSection(),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Traffic Breakdown Section
+                    _buildTrafficBreakdownSection(),
+                    
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlternativeRoutesSection() {
+    if (_alternativeRoutes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3a3a3a)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.alt_route, color: Color(0xFF06d6a0), size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Alternative Routes',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          ..._alternativeRoutes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final route = entry.value;
+            final isSelected = route.routeId == _currentRoute!.routeId;
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isSelected 
+                    ? const Color(0xFF06d6a0).withOpacity(0.1)
+                    : const Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected 
+                      ? const Color(0xFF06d6a0)
+                      : const Color(0xFF3a3a3a),
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: InkWell(
+                onTap: () => _switchToAlternativeRoute(route),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Route ${index + 1}',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected 
+                                    ? const Color(0xFF06d6a0)
+                                    : const Color(0xFFf5f6fa),
+                              ),
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF06d6a0),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'SELECTED',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1c1c1c),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          route.formattedTime,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF06d6a0),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          route.formattedDistance,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                            color: Color(0xFF9e9e9e),
+                          ),
+                        ),
+                        Text(
+                          'Traffic: ${route.overallTrafficLevel}',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                            color: _getRouteTrafficColor(route),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!isSelected && index > 0) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '+${((route.travelTimeInSeconds - _alternativeRoutes[0].travelTimeInSeconds) / 60).round()} min slower',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+          
+          if (_alternativeRoutes.length > 1) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Why we chose Route 1: ${_getRouteSelectionReason()}',
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color: Color(0xFF9e9e9e),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherImpactSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3a3a3a)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.wb_cloudy, color: Color(0xFF06d6a0), size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Weather Impact',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          if (_isLoadingWeather)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(
+                  color: Color(0xFF06d6a0),
+                ),
+              ),
+            )
+          else if (_destinationWeather != null) ...[
+            // Current weather
+            Row(
+              children: [
+                Icon(
+                  _getWeatherIcon(_destinationWeather!.main),
+                  color: const Color(0xFF06d6a0),
+                  size: 32,
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_destinationWeather!.temp.round()}°C',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFf5f6fa),
+                      ),
+                    ),
+                    Text(
+                      _destinationWeather!.description,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        color: Color(0xFF9e9e9e),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFF3a3a3a)),
+            const SizedBox(height: 16),
+            
+            // Weather details
+            _buildInfoRow(
+              'Conditions',
+              _weatherService.getWeatherImpactDescription(_destinationWeather!),
+            ),
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              'Added Time',
+              _getWeatherImpactTime(),
+            ),
+            if (_destinationWeather!.rain1h != null && 
+                _destinationWeather!.rain1h! > 0) ...[
+              const SizedBox(height: 12),
+              _buildInfoRow(
+                'Rainfall',
+                '${_destinationWeather!.rain1h!.toStringAsFixed(1)} mm/h',
+              ),
+            ],
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              'Visibility',
+              '${(_destinationWeather!.visibility / 1000).toStringAsFixed(1)} km',
+            ),
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              'Wind Speed',
+              '${_destinationWeather!.windSpeed.toStringAsFixed(1)} m/s',
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Forecast at arrival
+            Text(
+              'Forecast when you arrive (${_getArrivalTime()}):',
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFf5f6fa),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _destinationWeather!.description,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+          ] else
+            const Text(
+              'Weather data unavailable',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptimalDepartureSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3a3a3a)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.schedule, color: Color(0xFF06d6a0), size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Optimal Departure Times',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          if (_isLoadingDepartureTimes)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(
+                  color: Color(0xFF06d6a0),
+                ),
+              ),
+            )
+          else if (_departureTimeOptions.isNotEmpty) ...[
+            ..._departureTimeOptions.asMap().entries.map((entry) {
+              final index = entry.key;
+              final option = entry.value;
+              
+              // Find the optimal time (minimum total time)
+              final optimalOption = _departureTimeOptions.reduce(
+                (a, b) => a.totalTimeInSeconds < b.totalTimeInSeconds ? a : b,
+              );
+              final isOptimal = option.departureTime == optimalOption.departureTime;
+              
+              final now = DateTime.now();
+              final isNow = option.departureTime.difference(now).inMinutes <= 5;
+              
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isOptimal
+                      ? const Color(0xFF06d6a0).withOpacity(0.1)
+                      : const Color(0xFF1c1c1c),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isOptimal
+                        ? const Color(0xFF06d6a0)
+                        : const Color(0xFF3a3a3a),
+                    width: isOptimal ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              isNow ? 'Now' : option.formattedTime,
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: isOptimal
+                                    ? const Color(0xFF06d6a0)
+                                    : const Color(0xFFf5f6fa),
+                              ),
+                            ),
+                            if (isOptimal) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF06d6a0),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'BEST TIME',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1c1c1c),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Travel: ${option.formattedDuration}',
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 13,
+                            color: Color(0xFF9e9e9e),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (option.trafficDelayInSeconds > 0)
+                          Text(
+                            '+${(option.trafficDelayInSeconds / 60).round()} min',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                              color: Colors.orange,
+                            ),
+                          )
+                        else
+                          const Text(
+                            'No delay',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                              color: Color(0xFF06d6a0),
+                            ),
+                          ),
+                        if (!isNow && !isOptimal) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '+${((option.totalTimeInSeconds - optimalOption.totalTimeInSeconds) / 60).round()} min',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: Color(0xFF9e9e9e),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF06d6a0).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.lightbulb_outline,
+                    color: Color(0xFF06d6a0),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Save up to ${_getMaxTimeSavings()} by choosing the optimal departure time!',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        color: Color(0xFF06d6a0),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else
+            const Text(
+              'Departure time data unavailable',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrafficBreakdownSection() {
+    if (_currentRoute == null || _currentRoute!.trafficSections.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3a3a3a)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.timeline, color: Color(0xFF06d6a0), size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Traffic Breakdown',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          ..._currentRoute!.trafficSections.asMap().entries.map((entry) {
+            final index = entry.key;
+            final section = entry.value;
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _getTrafficSectionColor(section),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Section ${index + 1}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFf5f6fa),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getTrafficSectionColor(section).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          section.trafficLevel,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _getTrafficSectionColor(section),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Time: ${(section.travelTimeInSeconds / 60).round()} min',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          color: Color(0xFF9e9e9e),
+                        ),
+                      ),
+                      if (section.trafficDelayInSeconds > 0)
+                        Text(
+                          'Delay: +${(section.trafficDelayInSeconds / 60).round()} min',
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 13,
+                            color: Colors.orange,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Speed: ${section.currentSpeed.round()} km/h',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: Color(0xFF9e9e9e),
+                        ),
+                      ),
+                      Text(
+                        'Normal: ${section.freeFlowSpeed.round()} km/h',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: Color(0xFF9e9e9e),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods for traffic details
+  Color _getRouteTrafficColor(RouteInfo route) {
+    final level = route.overallTrafficLevel.toLowerCase();
+    if (level.contains('severe')) return Colors.red.shade700;
+    if (level.contains('heavy')) return Colors.red;
+    if (level.contains('moderate')) return Colors.orange;
+    return const Color(0xFF06d6a0);
+  }
+
+  Color _getTrafficSectionColor(TrafficSection section) {
+    final level = section.trafficLevel.toLowerCase();
+    if (level.contains('severe')) return Colors.red.shade700;
+    if (level.contains('heavy')) return Colors.red;
+    if (level.contains('moderate')) return Colors.orange;
+    return const Color(0xFF06d6a0);
+  }
+
+  String _getRouteSelectionReason() {
+    if (_alternativeRoutes.length < 2) return 'Only route available';
+    
+    final optimal = _alternativeRoutes[0];
+    final reasons = <String>[];
+    
+    // Check if fastest
+    reasons.add('fastest route');
+    
+    // Check traffic level
+    if (optimal.overallTrafficLevel == 'Light') {
+      reasons.add('minimal traffic');
+    }
+    
+    // Check distance if significantly shorter
+    final shortestDistance = _alternativeRoutes
+        .map((r) => r.distanceInMeters)
+        .reduce(math.min);
+    if (optimal.distanceInMeters == shortestDistance) {
+      reasons.add('shortest distance');
+    }
+    
+    return reasons.join(', ');
+  }
+
+  String _getWeatherImpactTime() {
+    if (_destinationWeather == null || _currentRoute == null) return 'N/A';
+    
+    final impact = _weatherService.calculateWeatherImpact(_destinationWeather!);
+    if (impact == 0) return 'No delay';
+    
+    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60).round();
+    return '+$impactMinutes min';
+  }
+
+  IconData _getWeatherIcon(String main) {
+    switch (main.toLowerCase()) {
+      case 'clear':
+        return Icons.wb_sunny;
+      case 'clouds':
+        return Icons.wb_cloudy;
+      case 'rain':
+      case 'drizzle':
+        return Icons.beach_access;
+      case 'thunderstorm':
+        return Icons.flash_on;
+      case 'snow':
+        return Icons.ac_unit;
+      case 'mist':
+      case 'fog':
+        return Icons.cloud;
+      default:
+        return Icons.wb_cloudy;
+    }
+  }
+
+  String _getMaxTimeSavings() {
+    if (_departureTimeOptions.isEmpty) return '0 min';
+    
+    final minTime = _departureTimeOptions
+        .map((o) => o.totalTimeInSeconds)
+        .reduce(math.min);
+    final maxTime = _departureTimeOptions
+        .map((o) => o.totalTimeInSeconds)
+        .reduce(math.max);
+    
+    final savings = (maxTime - minTime) ~/ 60;
+    return '$savings min';
+  }
+
+  void _switchToAlternativeRoute(RouteInfo route) {
+    setState(() {
+      _currentRoute = route;
+      _routePoints = route.coordinates;
+    });
+    
+    // Update markers
+    _updateMarkers();
+    
+    // Fit bounds to show entire route
+    _fitRouteBounds();
+    
+    Navigator.pop(context);
+    _showSnackBar('Route updated');
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 14,
-            color: Color(0xFF9e9e9e),
+        Flexible(
+          flex: 2,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Color(0xFF9e9e9e),
+            ),
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFFf5f6fa),
+        const SizedBox(width: 12),
+        Flexible(
+          flex: 3,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFf5f6fa),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRowGreen(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Flexible(
+          flex: 2,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: Color(0xFF1c1c1c),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          flex: 3,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1c1c1c),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

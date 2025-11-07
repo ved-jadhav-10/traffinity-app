@@ -5,7 +5,7 @@ import '../../home_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showBackButton;
-  
+
   const ProfileScreen({super.key, this.showBackButton = true});
 
   @override
@@ -15,29 +15,31 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   final _formKey = GlobalKey<FormState>();
-  
+
   // Controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _currentPasswordController = TextEditingController();
+  final TextEditingController _currentPasswordController =
+      TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
   // Vehicle controllers (up to 3)
   final List<Map<String, dynamic>> _vehicles = [];
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
-  
+
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
   }
-  
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -47,18 +49,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _confirmPasswordController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _loadUserProfile() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final profile = await _supabaseService.getUserProfile();
-      
+
       if (mounted) {
         setState(() {
           _nameController.text = profile['name'] ?? '';
           _phoneController.text = profile['phone_number'] ?? '';
-          
+
           // Load vehicles
           final vehiclesJson = profile['vehicles'] as List<dynamic>?;
           if (vehiclesJson != null) {
@@ -68,11 +70,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'type': vehicle['type'] ?? 'car',
                 'model': vehicle['model'] ?? '',
                 'fuel': vehicle['fuel'] ?? 'petrol',
-                'typeController': TextEditingController(text: vehicle['model'] ?? ''),
+                'typeController': TextEditingController(
+                  text: vehicle['model'] ?? '',
+                ),
               });
             }
           }
-          
+
           _isLoading = false;
         });
       }
@@ -83,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  
+
   void _addVehicle() {
     if (_vehicles.length < 3) {
       setState(() {
@@ -96,41 +100,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
   }
-  
+
   void _removeVehicle(int index) {
     setState(() {
       _vehicles[index]['typeController'].dispose();
       _vehicles.removeAt(index);
     });
   }
-  
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isSaving = true);
-    
+
     try {
       // Prepare vehicles data
-      final vehiclesData = _vehicles.where((v) => v['model'].toString().isNotEmpty).map((v) => {
-        'type': v['type'],
-        'model': v['typeController'].text.trim(),
-        'fuel': v['fuel'],
-      }).toList();
-      
+      final vehiclesData = _vehicles
+          .where((v) => v['model'].toString().isNotEmpty)
+          .map(
+            (v) => {
+              'type': v['type'],
+              'model': v['typeController'].text.trim(),
+              'fuel': v['fuel'],
+            },
+          )
+          .toList();
+
       // Update profile
       await _supabaseService.updateUserProfile(
         name: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         vehicles: vehiclesData,
       );
-      
+
       if (mounted) {
         setState(() => _isSaving = false);
         _showSnackBar('Profile updated successfully!');
-        
+
         // Reload profile to ensure sync
         await _loadUserProfile();
-        
+
         // If this was opened from sign-in (no back button), redirect to home
         if (!widget.showBackButton) {
           Navigator.pushAndRemoveUntil(
@@ -147,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  
+
   Future<void> _changePassword() async {
     if (_currentPasswordController.text.isEmpty ||
         _newPasswordController.text.isEmpty ||
@@ -155,25 +164,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showSnackBar('Please fill all password fields', isError: true);
       return;
     }
-    
+
     if (_newPasswordController.text != _confirmPasswordController.text) {
       _showSnackBar('New passwords do not match', isError: true);
       return;
     }
-    
+
     if (_newPasswordController.text.length < 6) {
       _showSnackBar('Password must be at least 6 characters', isError: true);
       return;
     }
-    
+
     setState(() => _isSaving = true);
-    
+
     try {
       await _supabaseService.updatePassword(
         currentPassword: _currentPasswordController.text,
         newPassword: _newPasswordController.text,
       );
-      
+
       if (mounted) {
         setState(() {
           _isSaving = false;
@@ -186,24 +195,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        _showSnackBar('Error changing password: ${e.toString()}', isError: true);
+        _showSnackBar(
+          'Error changing password: ${e.toString()}',
+          isError: true,
+        );
       }
     }
   }
-  
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(fontFamily: 'Poppins'),
-        ),
-        backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF06d6a0),
+        content: Text(message, style: const TextStyle(fontFamily: 'Poppins')),
+        backgroundColor: isError
+            ? Colors.red.shade700
+            : const Color(0xFF06d6a0),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -257,7 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Name Field
                     _buildSectionTitle('Personal Information'),
                     const SizedBox(height: 16),
@@ -273,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Phone Field
                     _buildTextField(
                       controller: _phoneController,
@@ -291,7 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Vehicles Section
                     _buildSectionTitle('Vehicles (Optional)'),
                     const SizedBox(height: 8),
@@ -304,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Show vehicle cards if any exist
                     if (_vehicles.isNotEmpty)
                       ..._vehicles.asMap().entries.map((entry) {
@@ -312,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         final vehicle = entry.value;
                         return _buildVehicleCard(index, vehicle);
                       }).toList(),
-                    
+
                     // Add Vehicle Button
                     if (_vehicles.length < 3)
                       Center(
@@ -320,7 +331,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onPressed: _addVehicle,
                           icon: const Icon(Icons.add, color: Color(0xFF06d6a0)),
                           label: Text(
-                            _vehicles.isEmpty ? 'Add Vehicle' : 'Add Another Vehicle',
+                            _vehicles.isEmpty
+                                ? 'Add Vehicle'
+                                : 'Add Another Vehicle',
                             style: const TextStyle(
                               fontFamily: 'Poppins',
                               color: Color(0xFF06d6a0),
@@ -329,7 +342,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFF06d6a0)),
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 24,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -337,11 +353,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     const SizedBox(height: 32),
-                    
+
                     // Password Section
                     _buildSectionTitle('Change Password'),
                     const SizedBox(height: 16),
-                    
+
                     _buildPasswordField(
                       controller: _currentPasswordController,
                       label: 'Current Password',
@@ -374,9 +390,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         });
                       },
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Update Password Button
                     SizedBox(
                       width: double.infinity,
@@ -412,7 +428,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Save Button
                     SizedBox(
                       width: double.infinity,
@@ -454,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
     );
   }
-  
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -466,7 +482,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-  
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -515,7 +531,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       validator: validator,
     );
   }
-  
+
   Widget _buildPasswordField({
     required TextEditingController controller,
     required String label,
@@ -539,7 +555,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF06d6a0)),
         suffixIcon: IconButton(
           icon: Icon(
-            obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            obscureText
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
             color: const Color(0xFF9e9e9e),
           ),
           onPressed: onToggle,
@@ -561,7 +579,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-  
+
   Widget _buildVehicleCard(int index, Map<String, dynamic> vehicle) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -594,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Vehicle Type Dropdown
           DropdownButtonFormField<String>(
             value: vehicle['type'],
@@ -610,7 +628,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontFamily: 'Poppins',
                 color: Color(0xFF9e9e9e),
               ),
-              prefixIcon: const Icon(Icons.directions_car, color: Color(0xFF06d6a0)),
+              prefixIcon: const Icon(
+                Icons.directions_car,
+                color: Color(0xFF06d6a0),
+              ),
               filled: true,
               fillColor: const Color(0xFF1c1c1c),
               border: OutlineInputBorder(
@@ -631,7 +652,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
           const SizedBox(height: 12),
-          
+
           // Model Text Field
           TextFormField(
             controller: vehicle['typeController'],
@@ -659,7 +680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Fuel Type Dropdown
           DropdownButtonFormField<String>(
             value: vehicle['fuel'],
@@ -675,7 +696,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontFamily: 'Poppins',
                 color: Color(0xFF9e9e9e),
               ),
-              prefixIcon: const Icon(Icons.local_gas_station, color: Color(0xFF06d6a0)),
+              prefixIcon: const Icon(
+                Icons.local_gas_station,
+                color: Color(0xFF06d6a0),
+              ),
               filled: true,
               fillColor: const Color(0xFF1c1c1c),
               border: OutlineInputBorder(

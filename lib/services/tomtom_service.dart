@@ -67,7 +67,7 @@ class TomTomService {
 
       final url = Uri.parse(
         '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
-        '?key=$_apiKey&traffic=true&travelMode=car',
+        '?key=$_apiKey&traffic=true&travelMode=car&sectionType=traffic&computeTravelTimeFor=all',
       );
 
       final response = await http.get(url);
@@ -90,11 +90,27 @@ class TomTomService {
           );
         }
 
+        // Parse traffic sections
+        List<TrafficSection> trafficSections = [];
+        if (route['sections'] != null) {
+          final sections = route['sections'] as List;
+          for (var section in sections) {
+            if (section['sectionType'] == 'TRAFFIC') {
+              trafficSections.add(TrafficSection.fromJson(section));
+            }
+          }
+        }
+
         return RouteInfo(
           coordinates: coordinates,
           distanceInMeters: summary['lengthInMeters'].toDouble(),
           travelTimeInSeconds: summary['travelTimeInSeconds'],
           trafficDelayInSeconds: summary['trafficDelayInSeconds']?.toString(),
+          trafficSections: trafficSections,
+          historicTrafficTravelTimeInSeconds: 
+              summary['historicTrafficTravelTimeInSeconds'],
+          liveTrafficIncidentsTravelTimeInSeconds:
+              summary['liveTrafficIncidentsTravelTimeInSeconds'],
         );
       } else {
         throw Exception('Failed to calculate route: ${response.statusCode}');
@@ -103,6 +119,143 @@ class TomTomService {
       print('Error calculating route: $e');
       return null;
     }
+  }
+
+  // Calculate multiple alternative routes
+  Future<List<RouteInfo>> calculateAlternativeRoutes({
+    required double startLat,
+    required double startLon,
+    required double endLat,
+    required double endLon,
+    List<Map<String, dynamic>>? waypoints,
+    int maxAlternatives = 3,
+  }) async {
+    try {
+      // Build route points string
+      String routePoints = '$startLat,$startLon';
+
+      if (waypoints != null && waypoints.isNotEmpty) {
+        for (var waypoint in waypoints) {
+          routePoints += ':${waypoint['lat']},${waypoint['lng']}';
+        }
+      }
+
+      routePoints += ':$endLat,$endLon';
+
+      final url = Uri.parse(
+        '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
+        '?key=$_apiKey&traffic=true&travelMode=car&sectionType=traffic'
+        '&computeTravelTimeFor=all&maxAlternatives=$maxAlternatives'
+        '&alternativeType=anyRoute',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final routes = data['routes'] as List;
+        
+        List<RouteInfo> alternativeRoutes = [];
+
+        for (int i = 0; i < routes.length; i++) {
+          final route = routes[i];
+          final summary = route['summary'];
+
+          // Collect coordinates
+          final legs = route['legs'] as List;
+          List<LatLng> coordinates = [];
+
+          for (var leg in legs) {
+            final points = leg['points'] as List;
+            coordinates.addAll(
+              points.map((point) {
+                return LatLng(point['latitude'], point['longitude']);
+              }).toList(),
+            );
+          }
+
+          // Parse traffic sections
+          List<TrafficSection> trafficSections = [];
+          if (route['sections'] != null) {
+            final sections = route['sections'] as List;
+            for (var section in sections) {
+              if (section['sectionType'] == 'TRAFFIC') {
+                trafficSections.add(TrafficSection.fromJson(section));
+              }
+            }
+          }
+
+          alternativeRoutes.add(
+            RouteInfo(
+              coordinates: coordinates,
+              distanceInMeters: summary['lengthInMeters'].toDouble(),
+              travelTimeInSeconds: summary['travelTimeInSeconds'],
+              trafficDelayInSeconds: summary['trafficDelayInSeconds']?.toString(),
+              trafficSections: trafficSections,
+              historicTrafficTravelTimeInSeconds:
+                  summary['historicTrafficTravelTimeInSeconds'],
+              liveTrafficIncidentsTravelTimeInSeconds:
+                  summary['liveTrafficIncidentsTravelTimeInSeconds'],
+              routeId: 'route_$i',
+            ),
+          );
+        }
+
+        return alternativeRoutes;
+      } else {
+        throw Exception('Failed to calculate routes: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error calculating alternative routes: $e');
+      return [];
+    }
+  }
+
+  // Calculate optimal departure time for next few hours
+  Future<List<DepartureTimeOption>> calculateOptimalDepartureTimes({
+    required double startLat,
+    required double startLon,
+    required double endLat,
+    required double endLon,
+    int hoursAhead = 6,
+  }) async {
+    List<DepartureTimeOption> options = [];
+    final now = DateTime.now();
+
+    for (int i = 0; i < hoursAhead; i++) {
+      final departureTime = now.add(Duration(hours: i));
+      
+      try {
+        String routePoints = '$startLat,$startLon:$endLat,$endLon';
+        
+        final url = Uri.parse(
+          '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
+          '?key=$_apiKey&traffic=true&travelMode=car'
+          '&departAt=${departureTime.toUtc().toIso8601String()}',
+        );
+
+        final response = await http.get(url);
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final route = data['routes'][0];
+          final summary = route['summary'];
+
+          options.add(
+            DepartureTimeOption(
+              departureTime: departureTime,
+              travelTimeInSeconds: summary['travelTimeInSeconds'],
+              trafficDelayInSeconds: summary['trafficDelayInSeconds'] ?? 0,
+              distanceInMeters: summary['lengthInMeters'].toDouble(),
+            ),
+          );
+        }
+      } catch (e) {
+        print('Error calculating departure time for hour $i: $e');
+      }
+    }
+
+    return options;
   }
 
   // Search for nearby places by category

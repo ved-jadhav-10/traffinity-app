@@ -47,20 +47,17 @@ class _SignInScreenState extends State<SignInScreen> {
         // Check if user needs to complete profile
         final profile = await SupabaseService().getUserProfile();
         final name = profile['name'] as String?;
-        final needsDetails = name == null || 
-                            name.trim().isEmpty || 
-                            name.trim() == 'User';
-        
+        final needsDetails =
+            name == null || name.trim().isEmpty || name.trim() == 'User';
+
         if (needsDetails) {
           // Redirect to profile screen to complete details
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(
-              builder: (context) => const ProfileScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const ProfileScreen()),
             (route) => false,
           );
-          
+
           // Show message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -85,7 +82,7 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) {
         final errorMessage = e.toString().toLowerCase();
         print('Sign in error: $errorMessage'); // Debug log
-        
+
         // Check if the error is due to user not found or invalid credentials
         if (errorMessage.contains('invalid login credentials') ||
             errorMessage.contains('invalid_credentials') ||
@@ -181,23 +178,22 @@ class _SignInScreenState extends State<SignInScreen> {
       if (success && mounted) {
         // Check if this is a new user (just created by OAuth)
         final user = SupabaseService().currentUser;
-        
+
         if (user != null) {
           // Check if profile exists in database
           final profileExists = await _checkProfileExists(user.id);
-          
+
           if (!profileExists) {
             // New user - redirect to complete profile/sign up
             if (mounted) {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SignUpScreen(
-                    initialEmail: user.email ?? '',
-                  ),
+                  builder: (context) =>
+                      SignUpScreen(initialEmail: user.email ?? ''),
                 ),
               );
-              
+
               // Show message
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -209,26 +205,26 @@ class _SignInScreenState extends State<SignInScreen> {
             }
           }
         }
-        
+
         // Existing user - navigate to home
         if (mounted) {
           // Check if user needs to complete profile
           final profile = await SupabaseService().getUserProfile();
           final name = profile['name'] as String?;
-          final needsDetails = name == null || 
-                              name.trim().isEmpty || 
-                              name.trim() == 'User';
-          
+          final needsDetails =
+              name == null || name.trim().isEmpty || name.trim() == 'User';
+
           if (needsDetails) {
             // Redirect to profile screen to complete details
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
-                builder: (context) => const ProfileScreen(showBackButton: false),
+                builder: (context) =>
+                    const ProfileScreen(showBackButton: false),
               ),
               (route) => false,
             );
-            
+
             // Show message
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -273,7 +269,7 @@ class _SignInScreenState extends State<SignInScreen> {
           .select('id')
           .eq('id', userId)
           .maybeSingle();
-      
+
       return response != null;
     } catch (e) {
       print('Error checking profile: $e');
