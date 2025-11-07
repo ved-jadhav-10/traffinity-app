@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/transport/train_search_screen.dart';
 import '../screens/transport/bus_search_screen.dart';
 import '../screens/transport/impact_tracker_calculator.dart';
+import '../screens/trips/my_trips_screen.dart';
 
 class TransportPage extends StatefulWidget {
   const TransportPage({super.key});
@@ -105,6 +106,14 @@ class _TransportPageState extends State<TransportPage> {
                   title: 'My Trips',
                   description: 'Plan your trips and save them in a log.',
                   color: const Color(0xFFf54748),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MyTripsScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 32),
 
@@ -359,6 +368,12 @@ class _TransportPageState extends State<TransportPage> {
                 ],
               ),
             ),
+            if (onTap != null)
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Color(0xFF9e9e9e),
+                size: 16,
+              ),
           ],
         ),
       ),

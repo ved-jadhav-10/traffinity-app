@@ -655,5 +655,121 @@ class SupabaseService {
       print('Error cleaning up expired incidents: $e');
     }
   }
+
+  // ==================== TRIPS METHODS ====================
+
+  // Get all trips for current user
+  Future<List<Map<String, dynamic>>> getUserTrips() async {
+    try {
+      final response = await client
+          .from('user_trips')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .order('start_date', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error fetching trips: $e');
+      return [];
+    }
+  }
+
+  // Add a new trip
+  Future<Map<String, dynamic>?> addTrip({
+    required String tripName,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String startLocationName,
+    required double startLocationLat,
+    required double startLocationLon,
+    required String endLocationName,
+    required double endLocationLat,
+    required double endLocationLon,
+    required double distanceKm,
+    required String transportType,
+    required String status,
+  }) async {
+    try {
+      final response = await client.from('user_trips').insert({
+        'user_id': currentUser!.id,
+        'trip_name': tripName,
+        'description': description,
+        'start_date': startDate.toIso8601String().split('T')[0],
+        'end_date': endDate.toIso8601String().split('T')[0],
+        'start_location_name': startLocationName,
+        'start_location_lat': startLocationLat,
+        'start_location_lon': startLocationLon,
+        'end_location_name': endLocationName,
+        'end_location_lat': endLocationLat,
+        'end_location_lon': endLocationLon,
+        'distance_km': distanceKm,
+        'transport_type': transportType,
+        'status': status,
+      }).select().single();
+
+      return response;
+    } catch (e) {
+      print('Error adding trip: $e');
+      return null;
+    }
+  }
+
+  // Update a trip
+  Future<bool> updateTrip({
+    required String tripId,
+    required String tripName,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String startLocationName,
+    required double startLocationLat,
+    required double startLocationLon,
+    required String endLocationName,
+    required double endLocationLat,
+    required double endLocationLon,
+    required double distanceKm,
+    required String transportType,
+    required String status,
+  }) async {
+    try {
+      await client.from('user_trips').update({
+        'trip_name': tripName,
+        'description': description,
+        'start_date': startDate.toIso8601String().split('T')[0],
+        'end_date': endDate.toIso8601String().split('T')[0],
+        'start_location_name': startLocationName,
+        'start_location_lat': startLocationLat,
+        'start_location_lon': startLocationLon,
+        'end_location_name': endLocationName,
+        'end_location_lat': endLocationLat,
+        'end_location_lon': endLocationLon,
+        'distance_km': distanceKm,
+        'transport_type': transportType,
+        'status': status,
+      }).eq('id', tripId).eq('user_id', currentUser!.id);
+
+      return true;
+    } catch (e) {
+      print('Error updating trip: $e');
+      return false;
+    }
+  }
+
+  // Delete a trip
+  Future<bool> deleteTrip(String tripId) async {
+    try {
+      await client
+          .from('user_trips')
+          .delete()
+          .eq('id', tripId)
+          .eq('user_id', currentUser!.id);
+
+      return true;
+    } catch (e) {
+      print('Error deleting trip: $e');
+      return false;
+    }
+  }
 }
 
