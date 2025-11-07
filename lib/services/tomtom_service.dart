@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../config/tomtom_config.dart';
@@ -433,5 +434,291 @@ class TomTomService {
       print('Error getting address: $e');
       return '';
     }
+  }
+
+  // Get live traffic incidents from TomTom Traffic Incidents API
+  Future<List<TomTomIncident>> getLiveTrafficIncidents({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+  }) async {
+    try {
+      // TomTom Traffic Incidents API v5
+      final url = Uri.parse(
+        '$_baseUrl/traffic/services/5/incidentDetails'
+        '?key=$_apiKey'
+        '&bbox=$minLon,$minLat,$maxLon,$maxLat'
+        '&fields={incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code,iconCategory},startTime,endTime,from,to,length,delay,roadNumbers,timeValidity}}}'
+        '&language=en-US'
+        '&categoryFilter=0,1,2,3,4,5,6,7,8,9,10,11,14',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final incidents = <TomTomIncident>[];
+
+        if (data['incidents'] != null) {
+          final incidentsList = data['incidents'] as List;
+          print('🚦 Received ${incidentsList.length} live TomTom incidents');
+
+          for (var incident in incidentsList) {
+            try {
+              incidents.add(TomTomIncident.fromJson(incident));
+            } catch (e) {
+              print('Error parsing incident: $e');
+            }
+          }
+        }
+
+        return incidents;
+      } else {
+        print('❌ Failed to get live incidents: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error getting live traffic incidents: $e');
+      return [];
+    }
+  }
+
+  // Get live traffic flow data (for drawing traffic polylines)
+  Future<List<TrafficFlowSegment>> getLiveTrafficFlow({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int zoom = 12,
+  }) async {
+    try {
+      // TomTom Traffic Flow Segments API
+      final url = Uri.parse(
+        '$_baseUrl/traffic/services/4/flowSegmentData/absolute/$zoom/json'
+        '?key=$_apiKey'
+        '&point=${(minLat + maxLat) / 2},${(minLon + maxLon) / 2}'
+        '&unit=KMPH',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final segments = <TrafficFlowSegment>[];
+
+        if (data['flowSegmentData'] != null) {
+          final flowData = data['flowSegmentData'];
+
+          // Create segment from response
+          segments.add(TrafficFlowSegment.fromJson(flowData));
+          print('🚦 Received traffic flow data');
+        }
+
+        return segments;
+      } else {
+        print('❌ Failed to get traffic flow: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error getting traffic flow: $e');
+      return [];
+    }
+  }
+}
+
+// Traffic Flow Segment Model
+class TrafficFlowSegment {
+  final double currentSpeed;
+  final double freeFlowSpeed;
+  final double confidence;
+  final List<LatLng> coordinates;
+
+  TrafficFlowSegment({
+    required this.currentSpeed,
+    required this.freeFlowSpeed,
+    required this.confidence,
+    required this.coordinates,
+  });
+
+  // Calculate traffic level color
+  Color get trafficColor {
+    if (coordinates.isEmpty) return Colors.grey;
+
+    final ratio = currentSpeed / freeFlowSpeed;
+    if (ratio >= 0.8) return const Color(0xFF06d6a0); // Green - Free flow
+    if (ratio >= 0.5) return Colors.yellow; // Yellow - Moderate
+    if (ratio >= 0.3) return Colors.orange; // Orange - Slow
+    return Colors.red; // Red - Heavy traffic
+  }
+
+  String get trafficLevel {
+    final ratio = currentSpeed / freeFlowSpeed;
+    if (ratio >= 0.8) return 'free';
+    if (ratio >= 0.5) return 'moderate';
+    if (ratio >= 0.3) return 'slow';
+    return 'heavy';
+  }
+
+  factory TrafficFlowSegment.fromJson(Map<String, dynamic> json) {
+    List<LatLng> coords = [];
+
+    if (json['coordinates'] != null) {
+      final coordsData = json['coordinates']['coordinate'] as List;
+      coords = coordsData
+          .map((c) => LatLng(c['latitude'], c['longitude']))
+          .toList();
+    }
+
+    return TrafficFlowSegment(
+      currentSpeed: (json['currentSpeed'] ?? 0).toDouble(),
+      freeFlowSpeed: (json['freeFlowSpeed'] ?? 1).toDouble(),
+      confidence: (json['confidence'] ?? 0.5).toDouble(),
+      coordinates: coords,
+    );
+  }
+}
+
+// TomTom Live Traffic Incident Model
+class TomTomIncident {
+  final String id;
+  final String type;
+  final LatLng location;
+  final String iconCategory;
+  final int magnitudeOfDelay;
+  final String description;
+  final DateTime? startTime;
+  final DateTime? endTime;
+  final String? fromLocation;
+  final String? toLocation;
+  final int? lengthInMeters;
+  final int? delayInSeconds;
+  final List<String> roadNumbers;
+
+  TomTomIncident({
+    required this.id,
+    required this.type,
+    required this.location,
+    required this.iconCategory,
+    required this.magnitudeOfDelay,
+    required this.description,
+    this.startTime,
+    this.endTime,
+    this.fromLocation,
+    this.toLocation,
+    this.lengthInMeters,
+    this.delayInSeconds,
+    required this.roadNumbers,
+  });
+
+  // Map TomTom icon categories to your incident types
+  String get incidentType {
+    switch (iconCategory) {
+      case '0': // Unknown
+      case '1': // Accident
+      case '2': // Fog
+      case '3': // Dangerous conditions
+      case '4': // Rain
+      case '5': // Ice
+      case '6': // Jam
+      case '7': // Lane closed
+      case '8': // Road closed
+      case '9': // Road works
+        return iconCategory == '9' ? 'roadwork' : 'accident';
+      case '10': // Wind
+      case '11': // Flooding
+      case '14': // Broken down vehicle
+        return 'accident';
+      default:
+        return 'accident';
+    }
+  }
+
+  // Map magnitude of delay to severity
+  String get severity {
+    if (magnitudeOfDelay == 0) return 'Minor';
+    if (magnitudeOfDelay == 1) return 'Minor';
+    if (magnitudeOfDelay == 2) return 'Moderate';
+    if (magnitudeOfDelay == 3) return 'Severe';
+    return 'Critical'; // magnitude 4
+  }
+
+  String get iconPath {
+    if (iconCategory == '9') {
+      return 'assets/icons/roadwork.png';
+    }
+    return 'assets/icons/accident.png';
+  }
+
+  String get displayName {
+    switch (iconCategory) {
+      case '1':
+        return 'Accident';
+      case '6':
+        return 'Traffic Jam';
+      case '7':
+        return 'Lane Closed';
+      case '8':
+        return 'Road Closed';
+      case '9':
+        return 'Road Work';
+      case '11':
+        return 'Flooding';
+      case '14':
+        return 'Broken Down Vehicle';
+      default:
+        return 'Traffic Incident';
+    }
+  }
+
+  factory TomTomIncident.fromJson(Map<String, dynamic> json) {
+    // Extract coordinates from geometry
+    final geometry = json['geometry'];
+    LatLng location;
+
+    if (geometry['type'] == 'Point') {
+      final coords = geometry['coordinates'] as List;
+      location = LatLng(coords[1], coords[0]); // [lon, lat] to LatLng(lat, lon)
+    } else {
+      // For LineString or Polygon, use first coordinate
+      final coords = (geometry['coordinates'] as List)[0] as List;
+      location = LatLng(coords[1], coords[0]);
+    }
+
+    final properties = json['properties'];
+    final events = properties['events'] as List;
+    final firstEvent = events.isNotEmpty ? events[0] : null;
+
+    return TomTomIncident(
+      id: json['id'] ?? properties['id'] ?? '',
+      type: geometry['type'] ?? 'Point',
+      location: location,
+      iconCategory: properties['iconCategory']?.toString() ?? '0',
+      magnitudeOfDelay: properties['magnitudeOfDelay'] ?? 0,
+      description: firstEvent?['description'] ?? 'Traffic incident',
+      startTime: properties['startTime'] != null
+          ? DateTime.parse(properties['startTime'])
+          : null,
+      endTime: properties['endTime'] != null
+          ? DateTime.parse(properties['endTime'])
+          : null,
+      fromLocation: properties['from'],
+      toLocation: properties['to'],
+      lengthInMeters: properties['length'] != null
+          ? (properties['length'] is int
+                ? properties['length'] as int
+                : (properties['length'] as num).round())
+          : null,
+      delayInSeconds: properties['delay'] != null
+          ? (properties['delay'] is int
+                ? properties['delay'] as int
+                : (properties['delay'] as num).round())
+          : null,
+      roadNumbers:
+          (properties['roadNumbers'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+    );
   }
 }
