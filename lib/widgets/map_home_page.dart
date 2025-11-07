@@ -2095,6 +2095,36 @@ class _MapHomePageState extends State<MapHomePage> {
                             ),
                           ),
                         ),
+
+                        // Optimize Route button (show when there's at least 1 waypoint)
+                        if (_waypoints.isNotEmpty)
+                          InkWell(
+                            onTap: _optimizeRoute,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.route,
+                                    color: Color(0xFFffa726),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Optimize route',
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 13,
+                                      color: Color(0xFFffa726),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -2397,7 +2427,8 @@ class _MapHomePageState extends State<MapHomePage> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: _currentRoute!.instructions.isNotEmpty
+                                  onPressed:
+                                      _currentRoute!.instructions.isNotEmpty
                                       ? _startLiveNavigation
                                       : null,
                                   icon: const Icon(Icons.navigation, size: 20),
@@ -2412,8 +2443,12 @@ class _MapHomePageState extends State<MapHomePage> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF06d6a0),
                                     foregroundColor: const Color(0xFF1c1c1c),
-                                    disabledBackgroundColor: const Color(0xFF3a3a3a),
-                                    disabledForegroundColor: const Color(0xFF9e9e9e),
+                                    disabledBackgroundColor: const Color(
+                                      0xFF3a3a3a,
+                                    ),
+                                    disabledForegroundColor: const Color(
+                                      0xFF9e9e9e,
+                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 12,
                                     ),
@@ -2750,6 +2785,114 @@ class _MapHomePageState extends State<MapHomePage> {
       _waypoints.removeAt(index);
     });
     _getDirections(); // Recalculate route
+  }
+
+  Future<void> _optimizeRoute() async {
+    if (_waypoints.isEmpty ||
+        _selectedDestination == null ||
+        _currentLocation == null) {
+      _showSnackBar('Need at least one waypoint to optimize');
+      return;
+    }
+
+    setState(() {
+      _isLoadingRoute = true;
+    });
+
+    _showSnackBar('Optimizing route...');
+
+    try {
+      // Include ALL points: start, waypoints, and destination
+      final allPoints = <Map<String, double>>[];
+
+      // Add start location
+      allPoints.add({
+        'lat': _currentLocation!.latitude,
+        'lng': _currentLocation!.longitude,
+      });
+
+      // Add all waypoints
+      for (var wp in _waypoints) {
+        allPoints.add({'lat': wp['lat'] as double, 'lng': wp['lng'] as double});
+      }
+
+      // Add destination
+      allPoints.add({
+        'lat': _selectedDestination!.latitude,
+        'lng': _selectedDestination!.longitude,
+      });
+
+      // Call the optimization API with all points
+      final optimizedOrder = await _tomtomService.optimizeWaypoints(
+        waypoints: allPoints,
+      );
+
+      if (optimizedOrder != null && optimizedOrder.isNotEmpty) {
+        // The optimized order includes indices for all points
+        // We need to extract the new waypoints order (excluding start and destination)
+
+        // Find where start (index 0) and destination (last index) are in optimized order
+        final startIndexInOptimized = optimizedOrder.indexOf(0);
+        final destOriginalIndex = allPoints.length - 1;
+        final destIndexInOptimized = optimizedOrder.indexOf(destOriginalIndex);
+
+        // Validate that start is first and destination is last
+        if (startIndexInOptimized != 0 ||
+            destIndexInOptimized != optimizedOrder.length - 1) {
+          _showSnackBar(
+            'Optimization suggests changing start/destination. Optimizing waypoints only...',
+          );
+
+          // Extract just the waypoint indices (1 to length-2 in original)
+          final waypointIndices = optimizedOrder
+              .where((idx) => idx > 0 && idx < destOriginalIndex)
+              .map((idx) => idx - 1) // Convert to waypoint index (0-based)
+              .toList();
+
+          // Reorder waypoints
+          final reorderedWaypoints = waypointIndices
+              .map((index) => _waypoints[index])
+              .toList();
+
+          setState(() {
+            _waypoints = reorderedWaypoints;
+            _isLoadingRoute = false;
+          });
+        } else {
+          // Start and destination are in correct positions
+          // Extract waypoint order (everything between start and destination)
+          final waypointOptimizedOrder = optimizedOrder
+              .sublist(1, optimizedOrder.length - 1)
+              .map((idx) => idx - 1) // Convert to waypoint index
+              .toList();
+
+          final reorderedWaypoints = waypointOptimizedOrder
+              .map((index) => _waypoints[index])
+              .toList();
+
+          setState(() {
+            _waypoints = reorderedWaypoints;
+            _isLoadingRoute = false;
+          });
+        }
+
+        _showSnackBar('Route optimized! Recalculating...');
+
+        // Recalculate route with optimized waypoints
+        await _getDirections();
+      } else {
+        setState(() {
+          _isLoadingRoute = false;
+        });
+        _showSnackBar('Failed to optimize route. Using original order.');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingRoute = false;
+      });
+      _showSnackBar('Error optimizing route: $e');
+      print('Error in _optimizeRoute: $e');
+    }
   }
 
   void _showDirectionsSheet() {

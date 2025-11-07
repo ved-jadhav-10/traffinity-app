@@ -43,6 +43,56 @@ class TomTomService {
     }
   }
 
+  // Optimize waypoint order using TomTom Waypoint Optimization API
+  Future<List<int>?> optimizeWaypoints({
+    required List<Map<String, double>> waypoints,
+    String travelMode = 'car',
+    int? vehicleMaxSpeed,
+  }) async {
+    try {
+      // Build the request body according to TomTom API specification
+      final requestBody = {
+        'waypoints': waypoints
+            .map(
+              (wp) => {
+                'point': {'latitude': wp['lat'], 'longitude': wp['lng']},
+              },
+            )
+            .toList(),
+        'options': {
+          'travelMode': travelMode,
+          if (vehicleMaxSpeed != null) 'vehicleMaxSpeed': vehicleMaxSpeed,
+        },
+      };
+
+      final url = Uri.parse(
+        '$_baseUrl/routing/waypointoptimization/1?key=$_apiKey',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final optimizedOrder = (data['optimizedOrder'] as List)
+            .map((e) => e as int)
+            .toList();
+        print('✅ Waypoint optimization successful: $optimizedOrder');
+        return optimizedOrder;
+      } else {
+        print('❌ Waypoint optimization failed: ${response.statusCode}');
+        print('Response: ${response.body}');
+        throw Exception('Failed to optimize waypoints: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error optimizing waypoints: $e');
+      return null;
+    }
+  }
+
   // Calculate route between two points with optional waypoints
   Future<RouteInfo?> calculateRoute({
     required double startLat,
@@ -50,14 +100,44 @@ class TomTomService {
     required double endLat,
     required double endLon,
     List<Map<String, dynamic>>? waypoints,
+    bool optimizeWaypointOrder = false,
   }) async {
     try {
+      // Optimize waypoint order if requested
+      List<Map<String, dynamic>>? orderedWaypoints = waypoints;
+
+      if (optimizeWaypointOrder && waypoints != null && waypoints.isNotEmpty) {
+        print('🔄 Optimizing waypoint order...');
+
+        // Convert waypoints to the format expected by optimization API
+        final waypointsForOptimization = waypoints
+            .map(
+              (wp) => {'lat': wp['lat'] as double, 'lng': wp['lng'] as double},
+            )
+            .toList();
+
+        // Get optimized order
+        final optimizedOrder = await optimizeWaypoints(
+          waypoints: waypointsForOptimization,
+        );
+
+        if (optimizedOrder != null && optimizedOrder.isNotEmpty) {
+          // Reorder waypoints based on optimized order
+          orderedWaypoints = optimizedOrder
+              .map((index) => waypoints[index])
+              .toList();
+          print('✅ Waypoints reordered for optimal route');
+        } else {
+          print('⚠️ Optimization failed, using original order');
+        }
+      }
+
       // Build route points string: start:waypoint1:waypoint2:end
       String routePoints = '$startLat,$startLon';
 
       // Add waypoints if any
-      if (waypoints != null && waypoints.isNotEmpty) {
-        for (var waypoint in waypoints) {
+      if (orderedWaypoints != null && orderedWaypoints.isNotEmpty) {
+        for (var waypoint in orderedWaypoints) {
           routePoints += ':${waypoint['lat']},${waypoint['lng']}';
         }
       }
@@ -354,79 +434,4 @@ class TomTomService {
       return '';
     }
   }
-
-  // Get traffic flow data for a bounding box
-  Future<List<Map<String, dynamic>>> getTrafficFlowInBoundingBox({
-    required double minLat,
-    required double minLon,
-    required double maxLat,
-    required double maxLon,
-    int zoom = 10,
-  }) async {
-    try {
-      // TomTom Traffic Flow API
-      final url = Uri.parse(
-        '$_baseUrl/traffic/services/4/flowSegmentData/absolute/$zoom/json'
-        '?key=$_apiKey&point=$minLat,$minLon&point=$maxLat,$maxLon',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        // Extract flow segment data
-        if (data['flowSegmentData'] != null) {
-          final flowData = data['flowSegmentData'];
-          
-          return [
-            {
-              'currentSpeed': flowData['currentSpeed'],
-              'freeFlowSpeed': flowData['freeFlowSpeed'],
-              'currentTravelTime': flowData['currentTravelTime'],
-              'freeFlowTravelTime': flowData['freeFlowTravelTime'],
-              'confidence': flowData['confidence'],
-              'coordinates': flowData['coordinates'],
-            }
-          ];
-        }
-        return [];
-      } else {
-        print('Traffic flow API error: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      print('Error getting traffic flow: $e');
-      return [];
-    }
-  }
-
-  // Get traffic flow data for a specific point (within radius)
-  Future<Map<String, dynamic>?> getTrafficFlowAtPoint({
-    required double lat,
-    required double lon,
-    int zoom = 10,
-  }) async {
-    try {
-      final url = Uri.parse(
-        '$_baseUrl/traffic/services/4/flowSegmentData/absolute/$zoom/json'
-        '?key=$_apiKey&point=$lat,$lon',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        if (data['flowSegmentData'] != null) {
-          return data['flowSegmentData'];
-        }
-      }
-      return null;
-    } catch (e) {
-      print('Error getting traffic flow at point: $e');
-      return null;
-    }
-  }
 }
-
