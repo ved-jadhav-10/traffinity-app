@@ -74,17 +74,17 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.favorite,
-                  title: 'Saved Places',
-                  description: 'Keep track of your favorite locations.',
+                  icon: Icons.business_center,
+                  title: 'Our Services',
+                  description: 'Check our website for more services and features!',
                   color: const Color(0xFFf54748),
                 ),
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.history,
-                  title: 'Route History',
-                  description: 'Access your previously traveled routes.',
+                  icon: Icons.report_problem,
+                  title: 'City Incident Map',
+                  description: 'A live map of all traffic jams, accidents, event or weather related delays.',
                   color: const Color(0xFF4a90e2),
                 ),
                 const SizedBox(height: 16),
@@ -98,9 +98,9 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.share_location,
-                  title: 'Share Territory',
-                  description: 'Share your favorite places with friends.',
+                  icon: Icons.people,
+                  title: 'Friends',
+                  description: 'See what your friends are up to!',
                   color: const Color(0xFF9c27b0),
                 ),
                 const SizedBox(height: 32),
@@ -120,7 +120,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   child: Column(
                     children: [
                       const Icon(
-                        Icons.explore,
+                        Icons.construction,
                         size: 48,
                         color: Color(0xFF1c1c1c),
                       ),
