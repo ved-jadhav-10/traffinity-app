@@ -4,9 +4,11 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../models/location_model.dart';
 import '../models/traffic_model.dart';
 import '../services/navigation_service.dart';
+import '../services/tomtom_service.dart';
 import '../config/tomtom_config.dart';
 import '../config/app_theme.dart';
 
@@ -26,6 +28,7 @@ class LiveNavigationScreen extends StatefulWidget {
 
 class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   final NavigationService _navigationService = NavigationService();
+  final TomTomService _tomtomService = TomTomService();
   final FlutterTts _flutterTts = FlutterTts();
   final MapController _mapController = MapController();
 
@@ -37,8 +40,13 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   RouteInstruction? _currentInstruction;
   RouteInstruction? _nextInstruction;
   bool _isMuted = false;
-  double _heading = 0.0;
+  double _compassHeading = 0.0;
   LatLng? _currentPosition;
+  
+  // Traffic flow data
+  List<TrafficFlowSegment> _trafficFlows = [];
+  List<Polyline> _trafficPolylines = [];
+  Timer? _trafficRefreshTimer;
 
   @override
   void initState() {
@@ -46,6 +54,8 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _initializeTTS();
     _startNavigation();
     _startCompass();
+    _loadTrafficData();
+    _startTrafficRefresh();
   }
 
   @override
@@ -53,6 +63,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _navigationSubscription?.cancel();
     _voiceSubscription?.cancel();
     _compassSubscription?.cancel();
+    _trafficRefreshTimer?.cancel();
     _navigationService.stopNavigation();
     _flutterTts.stop();
     super.dispose();
@@ -62,7 +73,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _compassSubscription = FlutterCompass.events?.listen((event) {
       if (mounted && event.heading != null) {
         setState(() {
-          _heading = event.heading!;
+          _compassHeading = event.heading!;
         });
       }
     });
@@ -90,9 +101,6 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
           
           // Update current position for map
           _currentPosition = state.currentPosition;
-          // Center map on current position with rotation
-          _mapController.move(_currentPosition!, 17.0);
-          _mapController.rotate(-_heading);
         });
       }
     });
@@ -108,6 +116,60 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
 
   Future<void> _speak(String text) async {
     await _flutterTts.speak(text);
+  }
+
+  Future<void> _loadTrafficData() async {
+    if (_currentPosition == null) return;
+
+    try {
+      // Calculate bounding box around route (20km radius)
+      const double kmToDegrees = 0.009;
+      final double offset = kmToDegrees * 20;
+
+      final trafficFlows = await _tomtomService.getLiveTrafficFlow(
+        minLat: _currentPosition!.latitude - offset,
+        minLon: _currentPosition!.longitude - offset,
+        maxLat: _currentPosition!.latitude + offset,
+        maxLon: _currentPosition!.longitude + offset,
+        zoom: 12,
+      );
+
+      if (mounted) {
+        setState(() {
+          _trafficFlows = trafficFlows;
+          _buildTrafficPolylines();
+        });
+      }
+    } catch (e) {
+      print('Error loading traffic data: $e');
+    }
+  }
+
+  void _buildTrafficPolylines() {
+    _trafficPolylines = _trafficFlows.map((flow) {
+      return Polyline(
+        points: flow.coordinates,
+        color: flow.trafficColor,
+        strokeWidth: 4.0,
+        borderColor: Colors.black.withOpacity(0.3),
+        borderStrokeWidth: 1.0,
+      );
+    }).toList();
+  }
+
+  void _startTrafficRefresh() {
+    _trafficRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _loadTrafficData();
+      }
+    });
+  }
+
+  void _recenterMap() {
+    _mapController.rotate(0);
+    if (_currentPosition != null) {
+      _mapController.move(_currentPosition!, _mapController.camera.zoom);
+    }
   }
 
   void _toggleMute() {
@@ -272,16 +334,18 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
       );
     }
 
-    return FlutterMap(
+    return Stack(
+      children: [
+        FlutterMap(
       mapController: _mapController,
       options: MapOptions(
         initialCenter: _currentPosition!,
         initialZoom: 17.5,
         minZoom: 10.0,
         maxZoom: 20.0,
-        initialRotation: -_heading,
+        initialRotation: 0,
         interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.none,
+          flags: InteractiveFlag.all,
         ),
         keepAlive: true,
       ),
@@ -292,6 +356,11 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
           subdomains: const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.traffinity.app',
           retinaMode: true,
+        ),
+
+        // Traffic flow polylines
+        PolylineLayer(
+          polylines: _trafficPolylines,
         ),
 
         // Route polyline - behind the car marker
@@ -343,7 +412,42 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
           ],
         ),
       ],
-    );
+    ),
+    
+    // Compass button for recentering (same style as incident map)
+    Positioned(
+      right: 16,
+      bottom: 16,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1c1c1c),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IconButton(
+          iconSize: 48,
+          onPressed: _recenterMap,
+          icon: Transform.rotate(
+            angle: -_compassHeading * (math.pi / 180),
+            child: Image.asset(
+              'assets/icons/compass.png',
+              width: 48,
+              height: 48,
+              color: const Color(0xFF06d6a0),
+            ),
+          ),
+          tooltip: 'Compass - Recenter & Reset North',
+        ),
+      ),
+    ),
+    ],
+  );
   }
 
   Widget _buildBottomSection() {
