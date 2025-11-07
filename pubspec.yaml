@@ -71,6 +71,9 @@ dependencies:
   # Speech to text for voice search
   speech_to_text: ^7.0.0
 
+  # URL launcher for opening external links
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
