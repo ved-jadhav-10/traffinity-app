@@ -14,6 +14,8 @@ import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import 'transport_page.dart';
+import 'territory_page.dart';
 
 class MapHomePage extends StatefulWidget {
   const MapHomePage({super.key});
@@ -1232,50 +1234,112 @@ class _MapHomePageState extends State<MapHomePage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Map with loading indicator
-          _isMapInitialized
-              ? FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter:
-                        _currentLocation ??
-                        const LatLng(
-                          20.5937,
-                          78.9629,
-                        ), // India center as fallback
-                    initialZoom: _currentLocation != null ? 14.0 : 5.0,
-                    minZoom: 3.0,
-                    maxZoom: 18.0,
-                    initialRotation: _mapRotation,
-                  ),
+          // Show different pages based on selected index
+          if (_selectedIndex == 0)
+            const TransportPage()
+          else if (_selectedIndex == 2)
+            const TerritoryPage()
+          else
+            // Traffinity (Map) Page - index 1
+            _buildMapPage(),
+
+          // Bottom Navigation Bar (always visible)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 12,
+                  bottom: MediaQuery.of(context).padding.bottom > 0
+                      ? MediaQuery.of(context).padding.bottom
+                      : 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
-                      userAgentPackageName: 'com.traffinity.app',
-                      // Use cached tile provider for faster loading
-                      tileProvider: CachedTileProvider(),
-                      // Keep tiles in memory for instant display
-                      keepBuffer: 5,
-                      // Preload tiles around visible area
-                      panBuffer: 2,
+                    _buildNavItem(
+                      index: 0,
+                      image: 'assets/images/transport.png',
+                      label: 'Transport',
                     ),
-                    if (_routePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            strokeWidth: 6.0,
-                            color: const Color(0xFF06d6a0),
-                          ),
-                        ],
-                      ),
-                    MarkerLayer(markers: _markers),
+                    _buildNavItem(
+                      index: 1,
+                      image: 'assets/images/logo.png',
+                      label: 'Traffinity',
+                    ),
+                    _buildNavItem(
+                      index: 2,
+                      image: 'assets/images/territory.png',
+                      label: 'Territory',
+                    ),
                   ],
-                )
-              : Container(
-                  color: const Color(0xFF1c1c1c),
-                  child: const Center(
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapPage() {
+    return Stack(
+      children: [
+        // Map with loading indicator
+        _isMapInitialized
+            ? FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter:
+                      _currentLocation ??
+                      const LatLng(
+                        20.5937,
+                        78.9629,
+                      ), // India center as fallback
+                  initialZoom: _currentLocation != null ? 14.0 : 5.0,
+                  minZoom: 3.0,
+                  maxZoom: 18.0,
+                  initialRotation: _mapRotation,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
+                    userAgentPackageName: 'com.traffinity.app',
+                    // Use cached tile provider for faster loading
+                    tileProvider: CachedTileProvider(),
+                    // Keep tiles in memory for instant display
+                    keepBuffer: 5,
+                    // Preload tiles around visible area
+                    panBuffer: 2,
+                  ),
+                  if (_routePoints.isNotEmpty)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: _routePoints,
+                          strokeWidth: 6.0,
+                          color: const Color(0xFF06d6a0),
+                        ),
+                      ],
+                    ),
+                  MarkerLayer(markers: _markers),
+                ],
+              )
+            : Container(
+                color: const Color(0xFF1c1c1c),
+                child: const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1940,8 +2004,10 @@ class _MapHomePageState extends State<MapHomePage> {
                               width: double.infinity,
                               child: OutlinedButton(
                                 onPressed: () {
-                                  // TODO: Navigate to Territory section
-                                  _showSnackBar('Territory mode coming soon!');
+                                  // Navigate to Territory page
+                                  setState(() {
+                                    _selectedIndex = 2;
+                                  });
                                 },
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF1c1c1c),
@@ -1974,55 +2040,8 @@ class _MapHomePageState extends State<MapHomePage> {
                 );
               },
             ),
-
-          // Bottom Navigation Bar (always visible)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF1c1c1c),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-              ),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 12,
-                  bottom: MediaQuery.of(context).padding.bottom > 0
-                      ? MediaQuery.of(context).padding.bottom
-                      : 12,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildNavItem(
-                      index: 0,
-                      image: 'assets/images/transport.png',
-                      label: 'Transport',
-                    ),
-                    _buildNavItem(
-                      index: 1,
-                      image: 'assets/images/logo.png',
-                      label: 'Traffinity',
-                    ),
-                    _buildNavItem(
-                      index: 2,
-                      image: 'assets/images/territory.png',
-                      label: 'Territory',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
-      ),
-    );
+      );
   }
 
   // Waypoint management methods
