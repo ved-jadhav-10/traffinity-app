@@ -121,3 +121,74 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create collections table
+CREATE TABLE IF NOT EXISTS public.collections (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    collection_name TEXT NOT NULL,
+    collection_description TEXT,
+    collection_picture TEXT,
+    date_created TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create index on user_id for faster queries
+CREATE INDEX IF NOT EXISTS collections_user_id_idx ON public.collections(user_id);
+
+-- Enable Row Level Security
+ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for collections
+CREATE POLICY "Users can view own collections" 
+ON public.collections FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own collections" 
+ON public.collections FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own collections" 
+ON public.collections FOR UPDATE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own collections" 
+ON public.collections FOR DELETE 
+USING (auth.uid() = user_id);
+
+-- Create collection_locations table
+CREATE TABLE IF NOT EXISTS public.collection_locations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    collection_id UUID NOT NULL REFERENCES public.collections(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    memory_name TEXT NOT NULL,
+    memory_description TEXT,
+    picture TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    address TEXT,
+    date_added TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS collection_locations_collection_id_idx ON public.collection_locations(collection_id);
+CREATE INDEX IF NOT EXISTS collection_locations_user_id_idx ON public.collection_locations(user_id);
+
+-- Enable Row Level Security
+ALTER TABLE public.collection_locations ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for collection_locations
+CREATE POLICY "Users can view own collection locations" 
+ON public.collection_locations FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own collection locations" 
+ON public.collection_locations FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own collection locations" 
+ON public.collection_locations FOR UPDATE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own collection locations" 
+ON public.collection_locations FOR DELETE 
+USING (auth.uid() = user_id);

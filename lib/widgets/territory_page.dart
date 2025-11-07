@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../screens/collections/collections_screen.dart';
 
 class TerritoryPage extends StatefulWidget {
   final VoidCallback? onExploreNearby;
@@ -96,6 +97,14 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   title: 'Collections',
                   description: 'Organize places into custom collections.',
                   color: const Color(0xFFffa726),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CollectionsScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
