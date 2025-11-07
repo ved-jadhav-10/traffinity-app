@@ -354,4 +354,79 @@ class TomTomService {
       return '';
     }
   }
+
+  // Get traffic flow data for a bounding box
+  Future<List<Map<String, dynamic>>> getTrafficFlowInBoundingBox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int zoom = 10,
+  }) async {
+    try {
+      // TomTom Traffic Flow API
+      final url = Uri.parse(
+        '$_baseUrl/traffic/services/4/flowSegmentData/absolute/$zoom/json'
+        '?key=$_apiKey&point=$minLat,$minLon&point=$maxLat,$maxLon',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Extract flow segment data
+        if (data['flowSegmentData'] != null) {
+          final flowData = data['flowSegmentData'];
+          
+          return [
+            {
+              'currentSpeed': flowData['currentSpeed'],
+              'freeFlowSpeed': flowData['freeFlowSpeed'],
+              'currentTravelTime': flowData['currentTravelTime'],
+              'freeFlowTravelTime': flowData['freeFlowTravelTime'],
+              'confidence': flowData['confidence'],
+              'coordinates': flowData['coordinates'],
+            }
+          ];
+        }
+        return [];
+      } else {
+        print('Traffic flow API error: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error getting traffic flow: $e');
+      return [];
+    }
+  }
+
+  // Get traffic flow data for a specific point (within radius)
+  Future<Map<String, dynamic>?> getTrafficFlowAtPoint({
+    required double lat,
+    required double lon,
+    int zoom = 10,
+  }) async {
+    try {
+      final url = Uri.parse(
+        '$_baseUrl/traffic/services/4/flowSegmentData/absolute/$zoom/json'
+        '?key=$_apiKey&point=$lat,$lon',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data['flowSegmentData'] != null) {
+          return data['flowSegmentData'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting traffic flow at point: $e');
+      return null;
+    }
+  }
 }
+

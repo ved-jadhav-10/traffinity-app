@@ -496,4 +496,141 @@ class SupabaseService {
       rethrow;
     }
   }
+
+  // ==================== Traffic Incidents ====================
+
+  // Report a new traffic incident
+  Future<Map<String, dynamic>?> reportTrafficIncident({
+    required String incidentType,
+    required String severity,
+    required double latitude,
+    required double longitude,
+    required int durationMinutes,
+    String? description,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      final incident = {
+        'user_id': user.id,
+        'incident_type': incidentType,
+        'severity': severity,
+        'latitude': latitude,
+        'longitude': longitude,
+        'duration_minutes': durationMinutes,
+        'description': description,
+      };
+
+      final response = await client
+          .from('traffic_incidents')
+          .insert(incident)
+          .select()
+          .single();
+
+      return response;
+    } catch (e) {
+      print('Error reporting traffic incident: $e');
+      rethrow;
+    }
+  }
+
+  // Get incidents within a radius (in meters) from a location
+  Future<List<Map<String, dynamic>>> getIncidentsWithinRadius({
+    required double latitude,
+    required double longitude,
+    int radiusMeters = 20000, // 20km default
+  }) async {
+    try {
+      // Call the PostgreSQL function we created
+      final response = await client
+          .rpc('get_incidents_within_radius', params: {
+        'lat': latitude,
+        'lng': longitude,
+        'radius_meters': radiusMeters,
+      });
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error fetching incidents: $e');
+      // Fallback: Get all recent incidents and filter client-side
+      try {
+        final twelveHoursAgo = DateTime.now()
+            .subtract(const Duration(hours: 12))
+            .toIso8601String();
+
+        final response = await client
+            .from('traffic_incidents')
+            .select()
+            .gte('start_time', twelveHoursAgo)
+            .order('created_at', ascending: false);
+
+        return List<Map<String, dynamic>>.from(response);
+      } catch (e) {
+        print('Error fetching incidents (fallback): $e');
+        return [];
+      }
+    }
+  }
+
+  // Update an incident
+  Future<bool> updateTrafficIncident({
+    required String incidentId,
+    String? severity,
+    int? durationMinutes,
+    String? description,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      final Map<String, dynamic> updates = {
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (severity != null) updates['severity'] = severity;
+      if (durationMinutes != null) updates['duration_minutes'] = durationMinutes;
+      if (description != null) updates['description'] = description;
+
+      await client
+          .from('traffic_incidents')
+          .update(updates)
+          .eq('id', incidentId)
+          .eq('user_id', user.id); // Ensure user owns the incident
+
+      return true;
+    } catch (e) {
+      print('Error updating traffic incident: $e');
+      return false;
+    }
+  }
+
+  // Delete an incident
+  Future<bool> deleteTrafficIncident(String incidentId) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      await client
+          .from('traffic_incidents')
+          .delete()
+          .eq('id', incidentId)
+          .eq('user_id', user.id); // Ensure user owns the incident
+
+      return true;
+    } catch (e) {
+      print('Error deleting traffic incident: $e');
+      return false;
+    }
+  }
+
+  // Clean up expired incidents (call this periodically from the app)
+  Future<void> cleanupExpiredIncidents() async {
+    try {
+      await client.rpc('delete_expired_incidents');
+    } catch (e) {
+      print('Error cleaning up expired incidents: $e');
+    }
+  }
 }
+

@@ -1,0 +1,893 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
+import '../services/supabase_service.dart';
+import '../services/location_service.dart';
+import '../models/traffic_incident_model.dart';
+import '../config/tomtom_config.dart';
+
+class CityIncidentMapScreen extends StatefulWidget {
+  const CityIncidentMapScreen({super.key});
+
+  @override
+  State<CityIncidentMapScreen> createState() => _CityIncidentMapScreenState();
+}
+
+class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
+  final MapController _mapController = MapController();
+  final SupabaseService _supabaseService = SupabaseService();
+  final LocationService _locationService = LocationService();
+
+  LatLng? _currentLocation;
+  List<TrafficIncident> _incidents = [];
+  List<Marker> _incidentMarkers = [];
+  List<Polyline> _trafficPolylines = [];
+  Timer? _refreshTimer;
+  bool _isLoading = true;
+  bool _isMapInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeMap();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initializeMap() async {
+    setState(() => _isLoading = true);
+
+    // Get current location
+    bool hasPermission = await _locationService.checkAndRequestPermissions();
+    if (hasPermission) {
+      Position? position = await _locationService.getCurrentLocation();
+      if (position != null && mounted) {
+        setState(() {
+          _currentLocation = LatLng(position.latitude, position.longitude);
+          _isMapInitialized = true;
+        });
+
+        // Load incidents and traffic data
+        await _loadIncidents();
+        await _loadTrafficData();
+      }
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadIncidents() async {
+    if (_currentLocation == null) return;
+
+    try {
+      final incidentsData = await _supabaseService.getIncidentsWithinRadius(
+        latitude: _currentLocation!.latitude,
+        longitude: _currentLocation!.longitude,
+        radiusMeters: 20000, // 20km
+      );
+
+      if (mounted) {
+        setState(() {
+          _incidents = incidentsData
+              .map((json) => TrafficIncident.fromJson(json))
+              .where((incident) => incident.isStillActive)
+              .toList();
+          _buildIncidentMarkers();
+        });
+      }
+    } catch (e) {
+      print('Error loading incidents: $e');
+    }
+  }
+
+  void _buildIncidentMarkers() {
+    _incidentMarkers = _incidents.map((incident) {
+      return Marker(
+        point: incident.location,
+        width: 40,
+        height: 40,
+        child: GestureDetector(
+          onTap: () => _showIncidentDetails(incident),
+          child: Image.asset(
+            incident.iconPath,
+            width: 40,
+            height: 40,
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  Future<void> _loadTrafficData() async {
+    if (_currentLocation == null) return;
+
+    // For simplicity, we'll visualize traffic using route-based data
+    // In a production app, you might want to use TomTom Traffic Flow Tiles
+    // For now, we'll create a visual representation based on common routes
+
+    // This is a simplified version - you could enhance it by:
+    // 1. Getting major roads in the area
+    // 2. Querying traffic flow for each road segment
+    // 3. Drawing polylines with colors based on speed
+
+    setState(() {
+      // For now, just clear traffic polylines
+      // In a full implementation, you'd query TomTom Traffic Flow API
+      // and create colored polylines based on speed data
+      _trafficPolylines = [];
+    });
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _loadIncidents();
+        _loadTrafficData();
+        // Clean up expired incidents
+        _supabaseService.cleanupExpiredIncidents();
+      }
+    });
+  }
+
+  void _showIncidentDetails(TrafficIncident incident) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF2a2a2a),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9e9e9e),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Incident type with icon
+            Row(
+              children: [
+                Image.asset(
+                  incident.iconPath,
+                  width: 48,
+                  height: 48,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        incident.displayName,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFf5f6fa),
+                        ),
+                      ),
+                      Text(
+                        'Severity: ${incident.severity}',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          color: _getSeverityColor(incident.severity),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Time information
+            _buildInfoRow(
+              Icons.access_time,
+              'Started',
+              _formatDateTime(incident.startTime),
+            ),
+            const SizedBox(height: 12),
+
+            _buildInfoRow(
+              Icons.timer,
+              'Duration',
+              incident.formattedDuration,
+            ),
+            const SizedBox(height: 12),
+
+            if (incident.estimatedEndTime != null)
+              _buildInfoRow(
+                Icons.event,
+                'Expected to clear',
+                _formatDateTime(incident.estimatedEndTime!),
+              ),
+            const SizedBox(height: 12),
+
+            // Description if available
+            if (incident.description != null &&
+                incident.description!.isNotEmpty) ...[
+              const Divider(color: Color(0xFF444444)),
+              const SizedBox(height: 12),
+              const Text(
+                'Description',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF9e9e9e),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                incident.description!,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  color: Color(0xFFf5f6fa),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            // Close button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF06d6a0),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1c1c1c),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF06d6a0), size: 20),
+        const SizedBox(width: 12),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            color: Color(0xFF9e9e9e),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFf5f6fa),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getSeverityColor(String severity) {
+    switch (severity) {
+      case 'Minor':
+        return Colors.yellow;
+      case 'Moderate':
+        return Colors.orange;
+      case 'Severe':
+        return Colors.red;
+      case 'Critical':
+        return Colors.red[900]!;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+    } else {
+      return '${dateTime.day}/${dateTime.month} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  void _showReportIncidentSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ReportIncidentSheet(
+        currentLocation: _currentLocation!,
+        onIncidentReported: () {
+          _loadIncidents(); // Refresh incidents after reporting
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1c1c1c),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1c1c1c),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFFf5f6fa)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'City Incident Map',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFf5f6fa),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF06d6a0)),
+            onPressed: () {
+              _loadIncidents();
+              _loadTrafficData();
+            },
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF06d6a0),
+              ),
+            )
+          : _isMapInitialized && _currentLocation != null
+              ? Stack(
+                  children: [
+                    // Map
+                    FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: _currentLocation!,
+                        initialZoom: 13.0,
+                        minZoom: 10.0,
+                        maxZoom: 18.0,
+                        onLongPress: (tapPosition, point) {
+                          // Allow reporting incident at tapped location
+                          _showReportIncidentAtLocation(point);
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://api.tomtom.com/map/1/tile/basic/main/'
+                              '{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
+                          userAgentPackageName: 'com.example.traffinity',
+                        ),
+                        // Traffic polylines (if implemented)
+                        PolylineLayer(
+                          polylines: _trafficPolylines,
+                        ),
+                        // Current location marker
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _currentLocation!,
+                              width: 30,
+                              height: 30,
+                              child: const Icon(
+                                Icons.my_location,
+                                color: Color(0xFF06d6a0),
+                                size: 30,
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Incident markers
+                        MarkerLayer(
+                          markers: _incidentMarkers,
+                        ),
+                      ],
+                    ),
+
+                    // Info card showing incident count
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2a2a2a).withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${_incidents.length} active incident${_incidents.length != 1 ? 's' : ''}',
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFf5f6fa),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildLegendItem(Colors.red, 'Heavy'),
+                                _buildLegendItem(Colors.orange, 'Slow'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : const Center(
+                  child: Text(
+                    'Unable to get your location',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      color: Color(0xFF9e9e9e),
+                    ),
+                  ),
+                ),
+      floatingActionButton: _isMapInitialized
+          ? FloatingActionButton.extended(
+              onPressed: _showReportIncidentSheet,
+              backgroundColor: const Color(0xFF06d6a0),
+              icon: const Icon(Icons.add_alert, color: Color(0xFF1c1c1c)),
+              label: const Text(
+                'Report Incident',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1c1c1c),
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 10,
+            color: Color(0xFFf5f6fa),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showReportIncidentAtLocation(LatLng location) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ReportIncidentSheet(
+        currentLocation: location,
+        onIncidentReported: () {
+          _loadIncidents();
+        },
+      ),
+    );
+  }
+}
+
+// Report Incident Bottom Sheet
+class ReportIncidentSheet extends StatefulWidget {
+  final LatLng currentLocation;
+  final VoidCallback onIncidentReported;
+
+  const ReportIncidentSheet({
+    super.key,
+    required this.currentLocation,
+    required this.onIncidentReported,
+  });
+
+  @override
+  State<ReportIncidentSheet> createState() => _ReportIncidentSheetState();
+}
+
+class _ReportIncidentSheetState extends State<ReportIncidentSheet> {
+  final SupabaseService _supabaseService = SupabaseService();
+  final TextEditingController _descriptionController = TextEditingController();
+
+  String _selectedType = 'accident';
+  String _selectedSeverity = 'Minor';
+  int _selectedDuration = 30; // minutes
+
+  final List<Map<String, dynamic>> _incidentTypes = [
+    {'value': 'accident', 'label': 'Accident', 'icon': 'assets/icons/accident.png'},
+    {'value': 'roadwork', 'label': 'Road Work', 'icon': 'assets/icons/roadwork.png'},
+    {'value': 'event', 'label': 'Event', 'icon': 'assets/icons/event.png'},
+  ];
+
+  final List<String> _severityLevels = ['Minor', 'Moderate', 'Severe', 'Critical'];
+  final List<Map<String, dynamic>> _durations = [
+    {'value': 5, 'label': '5 minutes'},
+    {'value': 15, 'label': '15 minutes'},
+    {'value': 30, 'label': '30 minutes'},
+    {'value': 60, 'label': '1 hour'},
+    {'value': 240, 'label': '4 hours'},
+    {'value': -1, 'label': 'Unknown'},
+  ];
+
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitReport() async {
+    setState(() => _isSubmitting = true);
+
+    try {
+      await _supabaseService.reportTrafficIncident(
+        incidentType: _selectedType,
+        severity: _selectedSeverity,
+        latitude: widget.currentLocation.latitude,
+        longitude: widget.currentLocation.longitude,
+        durationMinutes: _selectedDuration,
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onIncidentReported();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Incident reported successfully!'),
+            backgroundColor: Color(0xFF06d6a0),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF2a2a2a),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        top: 24,
+        left: 24,
+        right: 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9e9e9e),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            const Text(
+              'Report Incident',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFf5f6fa),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Incident Type
+            const Text(
+              'Incident Type',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: _incidentTypes.map((type) {
+                final isSelected = _selectedType == type['value'];
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedType = type['value']),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF06d6a0)
+                            : const Color(0xFF1c1c1c),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF06d6a0)
+                              : const Color(0xFF444444),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Image.asset(
+                            type['icon'],
+                            width: 32,
+                            height: 32,
+                            color: isSelected
+                                ? const Color(0xFF1c1c1c)
+                                : const Color(0xFFf5f6fa),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            type['label'],
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: isSelected
+                                  ? const Color(0xFF1c1c1c)
+                                  : const Color(0xFFf5f6fa),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+
+            // Severity
+            const Text(
+              'Severity',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButton<String>(
+                value: _selectedSeverity,
+                isExpanded: true,
+                underline: const SizedBox(),
+                dropdownColor: const Color(0xFF1c1c1c),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  color: Color(0xFFf5f6fa),
+                ),
+                items: _severityLevels.map((severity) {
+                  return DropdownMenuItem(
+                    value: severity,
+                    child: Text(severity),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedSeverity = value);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Duration
+            const Text(
+              'Expected Duration',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButton<int>(
+                value: _selectedDuration,
+                isExpanded: true,
+                underline: const SizedBox(),
+                dropdownColor: const Color(0xFF1c1c1c),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  color: Color(0xFFf5f6fa),
+                ),
+                items: _durations.map<DropdownMenuItem<int>>((duration) {
+                  return DropdownMenuItem<int>(
+                    value: duration['value'] as int,
+                    child: Text(duration['label'] as String),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedDuration = value);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Description
+            const Text(
+              'Description (Optional)',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF9e9e9e),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: Color(0xFFf5f6fa),
+              ),
+              decoration: InputDecoration(
+                hintText: 'Add any additional details...',
+                hintStyle: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  color: Color(0xFF9e9e9e),
+                ),
+                filled: true,
+                fillColor: const Color(0xFF1c1c1c),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submitReport,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF06d6a0),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF1c1c1c),
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Report Incident',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1c1c1c),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

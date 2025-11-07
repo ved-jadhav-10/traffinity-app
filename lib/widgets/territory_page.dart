@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../screens/collections/collections_screen.dart';
+import '../screens/city_incident_map_screen.dart';
 
 class TerritoryPage extends StatefulWidget {
   final VoidCallback? onExploreNearby;
@@ -89,6 +90,14 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   title: 'City Incident Map',
                   description: 'A live map of all traffic jams, accidents, event or weather related delays.',
                   color: const Color(0xFF4a90e2),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CityIncidentMapScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
