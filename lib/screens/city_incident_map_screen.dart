@@ -830,6 +830,45 @@ class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
                   ),
                 ),
 
+                // Info note for long press
+                Positioned(
+                  top: 130, // Below the incident count card
+                  left: 16,
+                  right: 16,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2a2a2a).withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Color(0xFF06d6a0),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Long press on the map to report an incident',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF9e9e9e),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
                 // Compass button for recentering
                 Positioned(
                   right: 16,
@@ -1105,10 +1144,13 @@ class _ReportIncidentSheetState extends State<ReportIncidentSheet> {
                       ),
                       child: Column(
                         children: [
-                          Image.asset(
-                            type['icon'],
-                            width: 32,
-                            height: 32,
+                          Icon(
+                            type['value'] == 'accident'
+                                ? Icons.car_crash
+                                : type['value'] == 'roadwork'
+                                    ? Icons.construction
+                                    : Icons.event,
+                            size: 32,
                             color: isSelected
                                 ? const Color(0xFF1c1c1c)
                                 : const Color(0xFFf5f6fa),

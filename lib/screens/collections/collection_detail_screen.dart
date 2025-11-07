@@ -366,24 +366,27 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
-        child: Row(
-          children: [
-            // Image
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.horizontal(left: Radius.circular(16)),
-              child: location.picture != null
-                  ? Image.network(
-                      location.picture!,
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildLocationPlaceholder();
-                      },
-                    )
-                  : _buildLocationPlaceholder(),
-            ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Image
+              ClipRRect(
+                borderRadius:
+                    const BorderRadius.horizontal(left: Radius.circular(16)),
+                child: SizedBox(
+                  width: 100,
+                  child: location.picture != null
+                      ? Image.network(
+                          location.picture!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildLocationPlaceholder();
+                          },
+                        )
+                      : _buildLocationPlaceholder(),
+                ),
+              ),
             // Content
             Expanded(
               child: Padding(
@@ -453,6 +456,7 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
             const SizedBox(width: 16),
           ],
         ),
+        ),
       ),
     );
   }
@@ -460,7 +464,6 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   Widget _buildLocationPlaceholder() {
     return Container(
       width: 100,
-      height: 100,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -469,10 +472,12 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
           ],
         ),
       ),
-      child: const Icon(
-        Icons.location_on,
-        size: 40,
-        color: Color(0xFF06d6a0),
+      child: const Center(
+        child: Icon(
+          Icons.location_on,
+          size: 40,
+          color: Color(0xFF06d6a0),
+        ),
       ),
     );
   }
