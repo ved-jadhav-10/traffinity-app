@@ -48,16 +48,19 @@ class NavigationService {
 
     // Get current position first
     final currentPosition = await _locationService.getCurrentLocation();
-    
+
     if (currentPosition != null) {
       // Update route to start from exact current position
-      final currentLatLng = LatLng(currentPosition.latitude, currentPosition.longitude);
-      
+      final currentLatLng = LatLng(
+        currentPosition.latitude,
+        currentPosition.longitude,
+      );
+
       // Replace first coordinate with current position
       if (route.coordinates.isNotEmpty) {
         route.coordinates[0] = currentLatLng;
       }
-      
+
       print('🧭 Navigation started from current position: $currentLatLng');
     }
 
@@ -65,15 +68,17 @@ class NavigationService {
     _currentInstructionIndex = 0;
     _isNavigating = true;
 
-    print('🧭 Navigation started with ${route.instructions.length} instructions');
+    print(
+      '🧭 Navigation started with ${route.instructions.length} instructions',
+    );
 
     // Start listening to location updates
     _locationSubscription = _locationService.getLocationStream().listen(
-          _onLocationUpdate,
-          onError: (error) {
-            print('❌ Location error: $error');
-          },
-        );
+      _onLocationUpdate,
+      onError: (error) {
+        print('❌ Location error: $error');
+      },
+    );
 
     // Announce first instruction
     if (route.instructions.isNotEmpty) {
@@ -109,9 +114,14 @@ class NavigationService {
     final isOnRoute = _isOnRoute(currentLatLng);
 
     // Calculate distances
-    final distanceToNextTurn = _calculateDistanceToNextInstruction(currentLatLng);
+    final distanceToNextTurn = _calculateDistanceToNextInstruction(
+      currentLatLng,
+    );
     final distanceRemaining = _calculateDistanceRemaining(currentLatLng);
-    final timeRemaining = _calculateTimeRemaining(distanceRemaining, position.speed);
+    final timeRemaining = _calculateTimeRemaining(
+      distanceRemaining,
+      position.speed,
+    );
 
     // Check if we've reached the next instruction
     _checkInstructionProximity(currentLatLng, distanceToNextTurn);
@@ -205,7 +215,11 @@ class NavigationService {
   }
 
   // Calculate distance to line segment
-  double _distanceToLineSegment(LatLng point, LatLng lineStart, LatLng lineEnd) {
+  double _distanceToLineSegment(
+    LatLng point,
+    LatLng lineStart,
+    LatLng lineEnd,
+  ) {
     final distance = const Distance();
 
     // Calculate vectors
@@ -213,7 +227,8 @@ class NavigationService {
     if (lineLength == 0) return distance.as(LengthUnit.Meter, point, lineStart);
 
     // Calculate projection
-    final t = ((point.latitude - lineStart.latitude) *
+    final t =
+        ((point.latitude - lineStart.latitude) *
                 (lineEnd.latitude - lineStart.latitude) +
             (point.longitude - lineStart.longitude) *
                 (lineEnd.longitude - lineStart.longitude)) /
@@ -245,7 +260,8 @@ class NavigationService {
       return 0;
     }
 
-    final nextInstruction = _currentRoute!.instructions[_currentInstructionIndex];
+    final nextInstruction =
+        _currentRoute!.instructions[_currentInstructionIndex];
     if (nextInstruction.point == null) return 0;
 
     final distance = const Distance();
@@ -302,32 +318,45 @@ class NavigationService {
 
   // Check instruction proximity and advance
   void _checkInstructionProximity(LatLng currentPosition, int distance) {
-    if (_currentRoute == null || _currentInstructionIndex >= _currentRoute!.instructions.length) {
+    if (_currentRoute == null ||
+        _currentInstructionIndex >= _currentRoute!.instructions.length) {
       return;
     }
 
-    final currentInstruction = _currentRoute!.instructions[_currentInstructionIndex];
+    final currentInstruction =
+        _currentRoute!.instructions[_currentInstructionIndex];
 
     // Announce at different distances
     if (distance <= 100 && distance > 50) {
-      _voiceGuidanceController.add('In 100 meters, ${currentInstruction.instruction}');
+      _voiceGuidanceController.add(
+        'In 100 meters, ${currentInstruction.instruction}',
+      );
     } else if (distance <= 500 && distance > 400) {
-      _voiceGuidanceController.add('In 500 meters, ${currentInstruction.instruction}');
+      _voiceGuidanceController.add(
+        'In 500 meters, ${currentInstruction.instruction}',
+      );
     }
 
     // Move to next instruction when close enough
     if (distance <= 30) {
       _currentInstructionIndex++;
-      print('✅ Instruction completed. Moving to ${_currentInstructionIndex + 1}/${_currentRoute!.instructions.length}');
+      print(
+        '✅ Instruction completed. Moving to ${_currentInstructionIndex + 1}/${_currentRoute!.instructions.length}',
+      );
 
       if (_currentInstructionIndex < _currentRoute!.instructions.length) {
-        _announceInstruction(_currentRoute!.instructions[_currentInstructionIndex]);
+        _announceInstruction(
+          _currentRoute!.instructions[_currentInstructionIndex],
+        );
       }
     }
   }
 
   // Announce instruction
-  void _announceInstruction(RouteInstruction instruction, {bool isFirst = false}) {
+  void _announceInstruction(
+    RouteInstruction instruction, {
+    bool isFirst = false,
+  }) {
     String message = instruction.instruction;
     if (isFirst) {
       message = 'Starting navigation. $message';
@@ -338,12 +367,16 @@ class NavigationService {
 
   // Check if arrived
   bool _checkArrival(LatLng currentPosition) {
-    if (_currentRoute == null || _currentRoute!.coordinates.isEmpty) return false;
+    if (_currentRoute == null || _currentRoute!.coordinates.isEmpty)
+      return false;
 
     final destination = _currentRoute!.coordinates.last;
     final distance = const Distance();
-    final distanceToDestination =
-        distance.as(LengthUnit.Meter, currentPosition, destination);
+    final distanceToDestination = distance.as(
+      LengthUnit.Meter,
+      currentPosition,
+      destination,
+    );
 
     return distanceToDestination <= arrivalThreshold;
   }

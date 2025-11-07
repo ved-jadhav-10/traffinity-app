@@ -18,7 +18,8 @@ class CityIncidentMapScreen extends StatefulWidget {
   State<CityIncidentMapScreen> createState() => _CityIncidentMapScreenState();
 }
 
-class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
+class _CityIncidentMapScreenState extends State<CityIncidentMapScreen>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   final SupabaseService _supabaseService = SupabaseService();
   final LocationService _locationService = LocationService();
@@ -39,9 +40,24 @@ class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
   bool _showLiveIncidents = true; // Toggle for live incidents
   bool _showTrafficFlow = true; // Toggle for traffic flow lines
 
+  // Animation for blinking severe accidents
+  late AnimationController _blinkController;
+  late Animation<double> _blinkAnimation;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize blink animation for severe accidents
+    _blinkController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _blinkAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut),
+    );
+
     _initializeMap();
     _startAutoRefresh();
     _setupCompass();
@@ -52,6 +68,7 @@ class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
     _refreshTimer?.cancel();
     _mapMoveDebounce?.cancel();
     _compassSubscription?.cancel();
+    _blinkController.dispose();
     super.dispose();
   }
 
@@ -141,31 +158,71 @@ class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
     // Add community-reported incidents (Supabase)
     _incidentMarkers.addAll(
       _incidents.map((incident) {
+        // Check if this is a severe accident
+        final isSevereAccident =
+            incident.incidentType == 'accident' &&
+            incident.severity == 'Severe';
+
         return Marker(
           point: incident.location,
           width: 40,
           height: 40,
           child: GestureDetector(
             onTap: () => _showIncidentDetails(incident),
-            child: Stack(
-              children: [
-                Image.asset(incident.iconPath, width: 40, height: 40),
-                // Small badge to indicate community-reported
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF06d6a0),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
+            child: isSevereAccident
+                ? AnimatedBuilder(
+                    animation: _blinkAnimation,
+                    builder: (context, child) {
+                      return Opacity(
+                        opacity: _blinkAnimation.value,
+                        child: Stack(
+                          children: [
+                            Image.asset(
+                              incident.iconPath,
+                              width: 40,
+                              height: 40,
+                            ),
+                            // Small badge to indicate community-reported
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF06d6a0),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  )
+                : Stack(
+                    children: [
+                      Image.asset(incident.iconPath, width: 40, height: 40),
+                      // Small badge to indicate community-reported
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF06d6a0),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         );
       }).toList(),
@@ -175,41 +232,91 @@ class _CityIncidentMapScreenState extends State<CityIncidentMapScreen> {
     if (_showLiveIncidents) {
       _incidentMarkers.addAll(
         _liveIncidents.map((incident) {
+          // Check if this is a severe accident from TomTom
+          // TomTom iconCategory '1' is accident, magnitudeOfDelay 3+ is severe/critical
+          final isSevereAccident =
+              incident.iconCategory == '1' && incident.magnitudeOfDelay >= 3;
+
           return Marker(
             point: incident.location,
             width: 40,
             height: 40,
             child: GestureDetector(
               onTap: () => _showLiveIncidentDetails(incident),
-              child: Stack(
-                children: [
-                  Image.asset(incident.iconPath, width: 40, height: 40),
-                  // Small badge to indicate live TomTom data
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'L',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
+              child: isSevereAccident
+                  ? AnimatedBuilder(
+                      animation: _blinkAnimation,
+                      builder: (context, child) {
+                        return Opacity(
+                          opacity: _blinkAnimation.value,
+                          child: Stack(
+                            children: [
+                              Image.asset(
+                                incident.iconPath,
+                                width: 40,
+                                height: 40,
+                              ),
+                              // Small badge to indicate live TomTom data
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'L',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    )
+                  : Stack(
+                      children: [
+                        Image.asset(incident.iconPath, width: 40, height: 40),
+                        // Small badge to indicate live TomTom data
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'L',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           );
         }).toList(),
@@ -1148,8 +1255,8 @@ class _ReportIncidentSheetState extends State<ReportIncidentSheet> {
                             type['value'] == 'accident'
                                 ? Icons.car_crash
                                 : type['value'] == 'roadwork'
-                                    ? Icons.construction
-                                    : Icons.event,
+                                ? Icons.construction
+                                : Icons.event,
                             size: 32,
                             color: isSelected
                                 ? const Color(0xFF1c1c1c)
