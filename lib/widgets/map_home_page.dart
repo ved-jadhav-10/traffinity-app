@@ -539,34 +539,88 @@ class _MapHomePageState extends State<MapHomePage> {
 
   // Helper function to get icon path for each category
   String _getCategoryIcon(String category) {
-    switch (category) {
-      case 'petrol_station':
-        return 'assets/images/petrol-pump.png';
-      case 'restaurant':
-        return 'assets/images/restaurant.png';
-      case 'electric_vehicle_station':
-        return 'assets/images/charging-station.png';
-      case 'parking':
-        return 'assets/images/parking.png';
-      case 'hotel':
-        return 'assets/images/hotel.png';
-      case 'atm':
-        return 'assets/images/atm.png';
-      case 'hospital':
-        return 'assets/images/hospital.png';
-      default:
-        return 'assets/images/atm.png'; // fallback icon
+    // Normalize category to lowercase for comparison
+    final normalizedCategory = category.toLowerCase();
+    
+    if (normalizedCategory.contains('petrol') || normalizedCategory.contains('gas')) {
+      return 'assets/images/petrol-pump.png';
+    } else if (normalizedCategory.contains('restaurant')) {
+      return 'assets/images/restaurant.png';
+    } else if (normalizedCategory.contains('electric') || normalizedCategory.contains('charging')) {
+      return 'assets/images/charging-station.png';
+    } else if (normalizedCategory.contains('parking')) {
+      return 'assets/images/parking.png';
+    } else if (normalizedCategory.contains('hotel')) {
+      return 'assets/images/hotel.png';
+    } else if (normalizedCategory.contains('atm')) {
+      return 'assets/images/atm.png';
+    } else if (normalizedCategory.contains('hospital')) {
+      return 'assets/images/hospital.png';
+    } else {
+      return 'assets/images/atm.png'; // fallback icon
     }
   }
 
   Future<void> _searchNearbyPlaces(String category) async {
     if (_currentLocation == null) return;
 
-    final results = await _tomtomService.searchNearbyPlaces(
-      lat: _currentLocation!.latitude,
-      lon: _currentLocation!.longitude,
-      category: category,
-    );
+    List<SearchResult> results = [];
+    
+    // For parking, search all three types and combine results
+    if (category == 'parking') {
+      final parkingTypes = ['open parking area', 'parking garage', 'parking lot'];
+      for (var parkingType in parkingTypes) {
+        final typeResults = await _tomtomService.searchNearbyPlaces(
+          lat: _currentLocation!.latitude,
+          lon: _currentLocation!.longitude,
+          category: parkingType,
+        );
+        results.addAll(typeResults);
+      }
+    } 
+    // For hotels, search all related types
+    else if (category == 'hotel') {
+      final hotelTypes = ['hotel', 'motel', 'resort', 'hostel'];
+      for (var hotelType in hotelTypes) {
+        final typeResults = await _tomtomService.searchNearbyPlaces(
+          lat: _currentLocation!.latitude,
+          lon: _currentLocation!.longitude,
+          category: hotelType,
+        );
+        results.addAll(typeResults);
+      }
+    }
+    // For ATMs, search all related types
+    else if (category == 'atm') {
+      final atmTypes = ['automatic teller machine', 'cash dispenser'];
+      for (var atmType in atmTypes) {
+        final typeResults = await _tomtomService.searchNearbyPlaces(
+          lat: _currentLocation!.latitude,
+          lon: _currentLocation!.longitude,
+          category: atmType,
+        );
+        results.addAll(typeResults);
+      }
+    }
+    // For restaurants, include cafes
+    else if (category == 'restaurant') {
+      final foodTypes = ['restaurant', 'cafe', 'coffee shop', 'tea house'];
+      for (var foodType in foodTypes) {
+        final typeResults = await _tomtomService.searchNearbyPlaces(
+          lat: _currentLocation!.latitude,
+          lon: _currentLocation!.longitude,
+          category: foodType,
+        );
+        results.addAll(typeResults);
+      }
+    }
+    else {
+      results = await _tomtomService.searchNearbyPlaces(
+        lat: _currentLocation!.latitude,
+        lon: _currentLocation!.longitude,
+        category: category,
+      );
+    }
 
     if (results.isNotEmpty && mounted) {
       setState(() {
@@ -610,6 +664,8 @@ class _MapHomePageState extends State<MapHomePage> {
       });
 
       _showSnackBar('Found ${results.length} places nearby');
+    } else if (mounted) {
+      _showSnackBar('No places found nearby');
     }
   }
 
@@ -657,6 +713,8 @@ class _MapHomePageState extends State<MapHomePage> {
                           place.longitude,
                         );
                         _searchController.text = place.name;
+                        _destinationLocationName = place.name;
+                        _showRouteInfo = true;
                       });
                       _updateMarkers();
                       _getDirections();
@@ -2044,7 +2102,7 @@ class _MapHomePageState extends State<MapHomePage> {
                       _buildCategoryChip(
                         icon: Icons.local_gas_station,
                         label: 'Gas',
-                        onTap: () => _searchNearbyPlaces('petrol_station'),
+                        onTap: () => _searchNearbyPlaces('petrol station'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.restaurant,
@@ -2055,7 +2113,7 @@ class _MapHomePageState extends State<MapHomePage> {
                         icon: Icons.ev_station,
                         label: 'EV Charging',
                         onTap: () =>
-                            _searchNearbyPlaces('electric_vehicle_station'),
+                            _searchNearbyPlaces('electric vehicle station'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.local_parking,

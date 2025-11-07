@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:traffinity/services/supabase_service.dart';
 import 'package:traffinity/screens/auth/sign_up_screen.dart';
 import 'package:traffinity/screens/auth/phone_sign_in_screen.dart';
+import '../../screens/profile/profile_screen.dart';
 import 'package:traffinity/home_page.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -43,12 +44,42 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       if (mounted) {
-        // Navigate to home screen
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-          (route) => false,
-        );
+        // Check if user needs to complete profile
+        final profile = await SupabaseService().getUserProfile();
+        final name = profile['name'] as String?;
+        final needsDetails = name == null || 
+                            name.trim().isEmpty || 
+                            name.trim() == 'User';
+        
+        if (needsDetails) {
+          // Redirect to profile screen to complete details
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ProfileScreen(),
+            ),
+            (route) => false,
+          );
+          
+          // Show message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Please complete your profile to continue',
+                style: TextStyle(fontFamily: 'Poppins'),
+              ),
+              backgroundColor: Color(0xFF06d6a0),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          // Navigate to home screen
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -181,11 +212,42 @@ class _SignInScreenState extends State<SignInScreen> {
         
         // Existing user - navigate to home
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
-            (route) => false,
-          );
+          // Check if user needs to complete profile
+          final profile = await SupabaseService().getUserProfile();
+          final name = profile['name'] as String?;
+          final needsDetails = name == null || 
+                              name.trim().isEmpty || 
+                              name.trim() == 'User';
+          
+          if (needsDetails) {
+            // Redirect to profile screen to complete details
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ProfileScreen(showBackButton: false),
+              ),
+              (route) => false,
+            );
+            
+            // Show message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Please complete your profile to continue',
+                  style: TextStyle(fontFamily: 'Poppins'),
+                ),
+                backgroundColor: Color(0xFF06d6a0),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else {
+            // Navigate to home screen
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomePage()),
+              (route) => false,
+            );
+          }
         }
       }
     } catch (e) {

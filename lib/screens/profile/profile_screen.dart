@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/supabase_service.dart';
+import '../../home_page.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool showBackButton;
+  
+  const ProfileScreen({super.key, this.showBackButton = true});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -127,6 +130,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         
         // Reload profile to ensure sync
         await _loadUserProfile();
+        
+        // If this was opened from sign-in (no back button), redirect to home
+        if (!widget.showBackButton) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -199,10 +211,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1c1c1c),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFf5f6fa)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFFf5f6fa)),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        automaticallyImplyLeading: widget.showBackButton,
         title: const Text(
           'Profile',
           style: TextStyle(
