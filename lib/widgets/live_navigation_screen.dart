@@ -9,6 +9,7 @@ import '../models/location_model.dart';
 import '../models/traffic_model.dart';
 import '../services/navigation_service.dart';
 import '../services/tomtom_service.dart';
+import '../services/weather_service.dart';
 import '../config/tomtom_config.dart';
 import '../config/app_theme.dart';
 
@@ -29,6 +30,7 @@ class LiveNavigationScreen extends StatefulWidget {
 class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   final NavigationService _navigationService = NavigationService();
   final TomTomService _tomtomService = TomTomService();
+  final WeatherService _weatherService = WeatherService();
   final FlutterTts _flutterTts = FlutterTts();
   final MapController _mapController = MapController();
 
@@ -38,15 +40,22 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
 
   NavigationState? _currentState;
   RouteInstruction? _currentInstruction;
-  RouteInstruction? _nextInstruction;
   bool _isMuted = false;
   double _compassHeading = 0.0;
   LatLng? _currentPosition;
-  
+  LatLng? _initialMapCenter; // Store initial map center to prevent jumping
+
   // Traffic flow data
   List<TrafficFlowSegment> _trafficFlows = [];
   List<Polyline> _trafficPolylines = [];
   Timer? _trafficRefreshTimer;
+  
+  // Weather data
+  WeatherData? _currentWeather;
+  Timer? _weatherRefreshTimer;
+  
+  // Notification tracking
+  Set<String> _shownNotifications = {};
 
   @override
   void initState() {
@@ -54,8 +63,8 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _initializeTTS();
     _startNavigation();
     _startCompass();
-    _loadTrafficData();
     _startTrafficRefresh();
+    _startWeatherRefresh();
   }
 
   @override
@@ -64,6 +73,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _voiceSubscription?.cancel();
     _compassSubscription?.cancel();
     _trafficRefreshTimer?.cancel();
+    _weatherRefreshTimer?.cancel();
     _navigationService.stopNavigation();
     _flutterTts.stop();
     super.dispose();
@@ -91,23 +101,37 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     await _navigationService.startNavigation(widget.route);
 
     // Listen to navigation state updates
-    _navigationSubscription =
-        _navigationService.navigationStateStream.listen((state) {
+    _navigationSubscription = _navigationService.navigationStateStream.listen((
+      state,
+    ) {
       if (mounted) {
+        final bool isFirstUpdate = _currentPosition == null;
+        
         setState(() {
           _currentState = state;
           _currentInstruction = _navigationService.getCurrentInstruction();
-          _nextInstruction = _navigationService.getNextInstruction();
-          
+
           // Update current position for map
           _currentPosition = state.currentPosition;
+          
+          // Set initial map center only once to prevent jumping
+          if (_initialMapCenter == null) {
+            _initialMapCenter = state.currentPosition;
+          }
         });
+        
+        // Load weather data on first position update
+        if (isFirstUpdate && _currentPosition != null) {
+          _loadWeatherData();
+          _loadTrafficData();
+        }
       }
     });
 
     // Listen to voice guidance
-    _voiceSubscription =
-        _navigationService.voiceGuidanceStream.listen((message) {
+    _voiceSubscription = _navigationService.voiceGuidanceStream.listen((
+      message,
+    ) {
       if (!_isMuted) {
         _speak(message);
       }
@@ -161,8 +185,148 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     _trafficRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted) {
         _loadTrafficData();
+        _checkForSevereTraffic();
       }
     });
+  }
+
+  Future<void> _loadWeatherData() async {
+    if (_currentPosition == null) return;
+
+    try {
+      print('🌤️ Loading weather for position: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
+      
+      final weather = await _weatherService.getCurrentWeather(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+
+      if (mounted && weather != null) {
+        print('🌤️ Weather loaded: ${weather.temp}°C, ${weather.description}');
+        setState(() {
+          _currentWeather = weather;
+        });
+        _checkForSevereWeather(weather);
+      } else {
+        print('⚠️ Weather data is null');
+      }
+    } catch (e) {
+      print('Error loading weather data: $e');
+    }
+  }
+
+  void _startWeatherRefresh() {
+    // Refresh weather every 5 minutes
+    _weatherRefreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      if (mounted) {
+        _loadWeatherData();
+      }
+    });
+  }
+
+  void _checkForSevereTraffic() {
+    // Check if there are any severe traffic conditions on route
+    for (var flow in _trafficFlows) {
+      // Red traffic = severe congestion
+      if (flow.trafficColor == Colors.red) {
+        final notificationKey = 'severe_traffic_${DateTime.now().hour}';
+        if (!_shownNotifications.contains(notificationKey)) {
+          _shownNotifications.add(notificationKey);
+          _showNotification(
+            'Severe Traffic Ahead',
+            'Heavy congestion detected on your route',
+            Colors.red,
+            Icons.traffic,
+          );
+          if (!_isMuted) {
+            _speak('Warning: Severe traffic congestion ahead');
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  void _checkForSevereWeather(WeatherData weather) {
+    final impact = _weatherService.calculateWeatherImpact(weather);
+    
+    // Severe weather conditions
+    if (impact >= 0.20) {
+      final notificationKey = 'severe_weather_${DateTime.now().hour}';
+      if (!_shownNotifications.contains(notificationKey)) {
+        _shownNotifications.add(notificationKey);
+        
+        String condition = '';
+        if (weather.rain1h != null && weather.rain1h! > 10) {
+          condition = 'Heavy rain';
+        } else if (weather.snow1h != null && weather.snow1h! > 5) {
+          condition = 'Heavy snow';
+        } else if (weather.visibility < 1000) {
+          condition = 'Poor visibility';
+        } else if (weather.windSpeed > 15) {
+          condition = 'Strong winds';
+        } else {
+          condition = 'Severe weather';
+        }
+        
+        _showNotification(
+          '$condition Alert',
+          '${weather.description[0].toUpperCase()}${weather.description.substring(1)} - Drive carefully',
+          Colors.orange,
+          Icons.warning_amber,
+        );
+        
+        if (!_isMuted) {
+          _speak('Warning: $condition detected. Please drive carefully');
+        }
+      }
+    }
+  }
+
+  void _showNotification(String title, String message, Color color, IconData icon) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _recenterMap() {
@@ -227,18 +391,57 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.darkBackground,
         body: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              // Top info bar
-              _buildTopBar(),
-
-              // Main navigation display
-              Expanded(
-                child: _buildNavigationDisplay(),
+              // Full screen map
+              _buildNavigationDisplay(),
+              
+              // Top instruction card (Google Maps style)
+              if (_currentInstruction != null)
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  child: _buildTopInstructionCard(),
+                ),
+              
+              // Weather and mute buttons (left side, above footer)
+              Positioned(
+                bottom: 140,
+                left: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Weather info
+                    if (_currentWeather != null) _buildWeatherCard(),
+                    const SizedBox(height: 12),
+                    // Mute button
+                    _buildMuteButton(),
+                  ],
+                ),
               ),
-
-              // Bottom: Compact instruction card + controls
-              _buildBottomSection(),
+              
+              // Compass button (right side)
+              Positioned(
+                right: 16,
+                bottom: 140,
+                child: _buildCompassButton(),
+              ),
+              
+              // Bottom footer with stats only
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _buildBottomFooter(),
+              ),
+              
+              // Close button (top right)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: _buildCloseButton(),
+              ),
             ],
           ),
         ),
@@ -246,66 +449,254 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     );
   }
 
-  Widget _buildTopBar() {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.borderColor, width: 1),
+  Widget _buildCompassButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _recenterMap,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2a2a2a).withOpacity(0.9),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppTheme.primaryGreen.withOpacity(0.3),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Compass rose background
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.primaryGreen.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+              ),
+              // Rotating compass image
+              Transform.rotate(
+                angle: _compassHeading * (math.pi / 180),
+                child: Image.asset(
+                  'assets/icons/compass.png',
+                  width: 32,
+                  height: 32,
+                  color: AppTheme.primaryGreen,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildWeatherCard() {
+    final impact = _weatherService.calculateWeatherImpact(_currentWeather!);
+    final isSevere = impact >= 0.20; // Severe if 20% or more impact
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a).withOpacity(0.9),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // ETA
+          Icon(
+            _getWeatherIcon(_currentWeather!.main),
+            color: _getWeatherSeverityColor(_currentWeather!),
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${_currentWeather!.temp.round()}°C',
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFf5f6fa),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _currentWeather!.description,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              color: Color(0xFFa4a8b0),
+            ),
+          ),
+          if (isSevere) ...[
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.warning_amber,
+              color: Colors.orange,
+              size: 18,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMuteButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleMute,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2a2a2a).withOpacity(0.9),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _isMuted ? Icons.volume_off : Icons.volume_up,
+                color: _isMuted ? const Color(0xFF666666) : AppTheme.primaryGreen,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _isMuted ? 'Unmute' : 'Mute',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  color: _isMuted ? const Color(0xFF666666) : const Color(0xFFf5f6fa),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloseButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          final shouldExit = await _showExitDialog();
+          if (shouldExit == true && mounted) {
+            widget.onEndNavigation();
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2a2a2a).withOpacity(0.9),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.close,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopInstructionCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a).withOpacity(0.95),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Maneuver icon
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _getManeuverIcon(_currentInstruction!.maneuver),
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          
+          // Instruction details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _currentState?.eta ?? '--:--',
-                  style: AppTheme.heading2.copyWith(
+                  _currentState?.nextTurnDistance ?? '--',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                     color: AppTheme.primaryGreen,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  'ETA',
-                  style: AppTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-
-          // Distance remaining
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  _currentState?.remainingDistance ?? '--',
-                  style: AppTheme.heading3,
-                ),
-                Text(
-                  'Remaining',
-                  style: AppTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-
-          // Current speed
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${_currentState?.currentSpeed.round() ?? 0}',
-                  style: AppTheme.heading3,
-                ),
-                Text(
-                  'km/h',
-                  style: AppTheme.bodySmall,
+                  _currentInstruction!.instruction,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    color: Color(0xFFf5f6fa),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -313,6 +704,150 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildBottomFooter() {
+    if (_currentState == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2a2a2a).withOpacity(0.95),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2a2a2a).withOpacity(0.95),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          // ETA
+          _buildStatItem(
+            icon: Icons.schedule,
+            label: 'ETA',
+            value: _currentState!.eta,
+            color: AppTheme.primaryGreen,
+          ),
+          
+          // Vertical divider
+          Container(
+            height: 50,
+            width: 1,
+            color: const Color(0xFF3a3a3a),
+          ),
+          
+          // Distance
+          _buildStatItem(
+            icon: Icons.straighten,
+            label: 'Distance',
+            value: _currentState!.remainingDistance,
+            color: Colors.blue,
+          ),
+          
+          // Vertical divider
+          Container(
+            height: 50,
+            width: 1,
+            color: const Color(0xFF3a3a3a),
+          ),
+          
+          // Speed
+          _buildStatItem(
+            icon: Icons.speed,
+            label: 'Speed',
+            value: '${_currentState!.currentSpeed.round()} km/h',
+            color: Colors.orange,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFf5f6fa),
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            color: Color(0xFF9095a0),
+          ),
+        ),
+      ],
+    );
+  }
+
+  IconData _getWeatherIcon(String main) {
+    switch (main.toLowerCase()) {
+      case 'clear':
+        return Icons.wb_sunny;
+      case 'clouds':
+        return Icons.cloud;
+      case 'rain':
+      case 'drizzle':
+        return Icons.grain;
+      case 'snow':
+        return Icons.ac_unit;
+      case 'thunderstorm':
+        return Icons.flash_on;
+      case 'mist':
+      case 'fog':
+        return Icons.blur_on;
+      default:
+        return Icons.wb_cloudy;
+    }
+  }
+
+  Color _getWeatherSeverityColor(WeatherData weather) {
+    final impact = _weatherService.calculateWeatherImpact(weather);
+    
+    if (impact >= 0.25) {
+      return Colors.red;
+    } else if (impact >= 0.15) {
+      return Colors.orange;
+    } else if (impact >= 0.10) {
+      return Colors.yellow.shade700;
+    } else {
+      return AppTheme.primaryGreen;
+    }
   }
 
   Widget _buildNavigationDisplay() {
@@ -325,9 +860,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
             const SizedBox(height: AppTheme.spacingL),
             Text(
               'Starting navigation...',
-              style: AppTheme.bodyLarge.copyWith(
-                color: AppTheme.textSecondary,
-              ),
+              style: AppTheme.bodyLarge.copyWith(color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -337,372 +870,119 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     return Stack(
       children: [
         FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _currentPosition!,
-        initialZoom: 17.5,
-        minZoom: 10.0,
-        maxZoom: 20.0,
-        initialRotation: 0,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all,
-        ),
-        keepAlive: true,
-      ),
-      children: [
-        // TomTom Dark Mode Raster Tiles (guaranteed to work)
-        TileLayer(
-          urlTemplate: 'https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
-          subdomains: const ['a', 'b', 'c', 'd'],
-          userAgentPackageName: 'com.traffinity.app',
-          retinaMode: true,
-        ),
-
-        // Traffic flow polylines
-        PolylineLayer(
-          polylines: _trafficPolylines,
-        ),
-
-        // Route polyline - behind the car marker
-        PolylineLayer(
-          polylines: [
-            Polyline(
-              points: widget.route.coordinates,
-              strokeWidth: 7.0,
-              color: AppTheme.primaryGreen,
-              borderStrokeWidth: 2.0,
-              borderColor: Colors.black.withOpacity(0.3),
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _initialMapCenter ?? _currentPosition!,
+            initialZoom: 17.5,
+            minZoom: 10.0,
+            maxZoom: 20.0,
+            initialRotation: 0,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all,
             ),
-          ],
-        ),
-
-        // Car marker - centered and always visible
-        MarkerLayer(
-          rotate: false,
-          markers: [
-            Marker(
-              point: _currentPosition!,
-              width: 70,
-              height: 70,
-              alignment: Alignment.center,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryGreen.withOpacity(0.6),
-                      blurRadius: 15,
-                      spreadRadius: 3,
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.navigation,
-                  color: AppTheme.primaryGreen,
-                  size: 42,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-    
-    // Compass button for recentering (same style as incident map)
-    Positioned(
-      right: 16,
-      bottom: 16,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1c1c1c),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: IconButton(
-          iconSize: 48,
-          onPressed: _recenterMap,
-          icon: Transform.rotate(
-            angle: -_compassHeading * (math.pi / 180),
-            child: Image.asset(
-              'assets/icons/compass.png',
-              width: 48,
-              height: 48,
-              color: const Color(0xFF06d6a0),
-            ),
+            keepAlive: true,
           ),
-          tooltip: 'Compass - Recenter & Reset North',
-        ),
-      ),
-    ),
-    ],
-  );
-  }
-
-  Widget _buildBottomSection() {
-    if (_currentInstruction == null) {
-      return Container(
-        padding: const EdgeInsets.all(AppTheme.spacingL),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
-          border: Border(
-            top: BorderSide(color: AppTheme.borderColor, width: 1),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            IconButton(
-              onPressed: null,
-              icon: Icon(
-                Icons.volume_up,
-                color: AppTheme.textSecondary,
-                size: AppTheme.iconSizeXL,
-              ),
+            // TomTom Dark Mode Raster Tiles (guaranteed to work)
+            TileLayer(
+              urlTemplate:
+                  'https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key=${TomTomConfig.apiKey}',
+              subdomains: const ['a', 'b', 'c', 'd'],
+              userAgentPackageName: 'com.traffinity.app',
+              retinaMode: true,
             ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final shouldExit = await _showExitDialog();
-                if (shouldExit == true && mounted) {
-                  widget.onEndNavigation();
-                }
-              },
-              icon: const Icon(Icons.close),
-              label: Text('End', style: AppTheme.bodyLarge.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              )),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.errorRed,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingXXL,
-                  vertical: AppTheme.spacingM,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: null,
-              icon: Icon(
-                Icons.map,
-                color: AppTheme.textSecondary,
-                size: AppTheme.iconSizeXL,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
-        border: Border(
-          top: BorderSide(color: AppTheme.borderColor, width: 1),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Off-route warning (if applicable)
-          if (_currentState?.isOnRoute == false)
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacingL,
-                vertical: AppTheme.spacingS,
-              ),
-              color: AppTheme.warningOrange,
-              child: Row(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  const Icon(Icons.warning, color: Colors.white, size: AppTheme.iconSizeM),
-                  const SizedBox(width: AppTheme.spacingS),
-                  Expanded(
-                    child: Text(
-                      'Off route - Recalculating...',
-                      style: AppTheme.bodySmall.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+            // Traffic flow polylines
+            PolylineLayer(polylines: _trafficPolylines),
+
+            // Route polyline - behind the car marker
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: widget.route.coordinates,
+                  strokeWidth: 7.0,
+                  color: AppTheme.primaryGreen,
+                  borderStrokeWidth: 2.0,
+                  borderColor: Colors.black.withOpacity(0.3),
+                ),
+              ],
+            ),
+
+            // Current location marker (car icon - fixed orientation with circle)
+            MarkerLayer(
+              rotate: false,
+              markers: [
+                Marker(
+                  point: _currentPosition!,
+                  width: 50,
+                  height: 50,
+                  alignment: Alignment.center,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF2a2a2a),
+                      border: Border.all(
+                        color: AppTheme.primaryGreen,
+                        width: 3,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryGreen.withOpacity(0.4),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.navigation,
+                      color: AppTheme.primaryGreen,
+                      size: 28,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ],
+        ),
 
-          // Compact instruction display
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTheme.spacingL,
-              AppTheme.spacingM,
-              AppTheme.spacingL,
-              AppTheme.spacingS,
+        // Compass button for recentering (same style as incident map)
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1c1c1c),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Row(
-              children: [
-                // Maneuver icon
-                Container(
+            child: IconButton(
+              iconSize: 48,
+              onPressed: _recenterMap,
+              icon: Transform.rotate(
+                angle: -_compassHeading * (math.pi / 180),
+                child: Image.asset(
+                  'assets/icons/compass.png',
                   width: 48,
                   height: 48,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                  ),
-                  child: Icon(
-                    _getManeuverIcon(_currentInstruction!.maneuver),
-                    color: Colors.white,
-                    size: AppTheme.iconSizeL,
-                  ),
+                  color: const Color(0xFF06d6a0),
                 ),
-                const SizedBox(width: AppTheme.spacingM),
-                
-                // Distance and instruction
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _currentState?.nextTurnDistance ?? '--',
-                        style: AppTheme.heading3.copyWith(
-                          color: AppTheme.primaryGreen,
-                          fontSize: 22,
-                        ),
-                      ),
-                      Text(
-                        _currentInstruction!.instruction,
-                        style: AppTheme.bodyMedium.copyWith(
-                          color: AppTheme.textPrimary,
-                          fontSize: 13,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Next instruction preview (compact)
-          if (_nextInstruction != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTheme.spacingL,
-                0,
-                AppTheme.spacingL,
-                AppTheme.spacingS,
               ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 60), // Align with text above
-                  Text(
-                    'Then ',
-                    style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                  ),
-                  Icon(
-                    _getManeuverIcon(_nextInstruction!.maneuver),
-                    size: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                  const SizedBox(width: AppTheme.spacingXS),
-                  Expanded(
-                    child: Text(
-                      _nextInstruction!.instruction,
-                      style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Divider
-          Divider(
-            color: AppTheme.borderColor,
-            height: 1,
-            thickness: 1,
-          ),
-
-          // Bottom controls
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.spacingL,
-              vertical: AppTheme.spacingM,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // Mute button
-                IconButton(
-                  onPressed: _toggleMute,
-                  icon: Icon(
-                    _isMuted ? Icons.volume_off : Icons.volume_up,
-                    color: _isMuted ? AppTheme.textSecondary : AppTheme.primaryGreen,
-                    size: AppTheme.iconSizeL,
-                  ),
-                  tooltip: _isMuted ? 'Unmute' : 'Mute',
-                ),
-
-                // End navigation button
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final shouldExit = await _showExitDialog();
-                    if (shouldExit == true && mounted) {
-                      widget.onEndNavigation();
-                    }
-                  },
-                  icon: const Icon(Icons.close, size: 18),
-                  label: Text('End', style: AppTheme.bodyMedium.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  )),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.errorRed,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                    ),
-                  ),
-                ),
-
-                // Overview button
-                IconButton(
-                  onPressed: () {
-                    // TODO: Show route overview
-                  },
-                  icon: const Icon(
-                    Icons.map,
-                    color: AppTheme.primaryGreen,
-                    size: AppTheme.iconSizeL,
-                  ),
-                  tooltip: 'Overview',
-                ),
-              ],
+              tooltip: 'Compass - Recenter & Reset North',
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -711,33 +991,24 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.cardBackground,
-        title: Text(
-          'End Navigation?',
-          style: AppTheme.heading3,
-        ),
+        title: Text('End Navigation?', style: AppTheme.heading3),
         content: Text(
           'Are you sure you want to end navigation?',
-          style: AppTheme.bodyMedium.copyWith(
-            color: AppTheme.textSecondary,
-          ),
+          style: AppTheme.bodyMedium.copyWith(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: AppTheme.bodyLarge.copyWith(
-                color: AppTheme.textSecondary,
-              ),
+              style: AppTheme.bodyLarge.copyWith(color: AppTheme.textSecondary),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               'End',
-              style: AppTheme.bodyLarge.copyWith(
-                color: AppTheme.errorRed,
-              ),
+              style: AppTheme.bodyLarge.copyWith(color: AppTheme.errorRed),
             ),
           ),
         ],

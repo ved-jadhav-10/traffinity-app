@@ -46,6 +46,21 @@ class NavigationService {
       await stopNavigation();
     }
 
+    // Get current position first
+    final currentPosition = await _locationService.getCurrentLocation();
+    
+    if (currentPosition != null) {
+      // Update route to start from exact current position
+      final currentLatLng = LatLng(currentPosition.latitude, currentPosition.longitude);
+      
+      // Replace first coordinate with current position
+      if (route.coordinates.isNotEmpty) {
+        route.coordinates[0] = currentLatLng;
+      }
+      
+      print('🧭 Navigation started from current position: $currentLatLng');
+    }
+
     _currentRoute = route;
     _currentInstructionIndex = 0;
     _isNavigating = true;
