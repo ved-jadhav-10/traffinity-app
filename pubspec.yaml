@@ -71,6 +71,9 @@ dependencies:
   # Speech to text for voice search
   speech_to_text: ^7.0.0
 
+  # Text to speech for navigation voice guidance
+  flutter_tts: ^4.2.0
+
   # URL launcher for opening external links
   url_launcher: ^6.3.1
 

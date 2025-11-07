@@ -17,6 +17,7 @@ import '../screens/auth/sign_in_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import 'transport_page.dart';
 import 'territory_page.dart';
+import 'live_navigation_screen.dart';
 
 class MapHomePage extends StatefulWidget {
   const MapHomePage({super.key});
@@ -2395,27 +2396,29 @@ class _MapHomePageState extends State<MapHomePage> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    // TODO: Start 3D navigation
-                                    _showSnackBar('3D Navigation coming soon!');
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF06d6a0),
-                                    foregroundColor: const Color(0xFF1c1c1c),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text(
+                                child: ElevatedButton.icon(
+                                  onPressed: _currentRoute!.instructions.isNotEmpty
+                                      ? _startLiveNavigation
+                                      : null,
+                                  icon: const Icon(Icons.navigation, size: 20),
+                                  label: const Text(
                                     'START',
                                     style: TextStyle(
                                       fontFamily: 'Poppins',
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF06d6a0),
+                                    foregroundColor: const Color(0xFF1c1c1c),
+                                    disabledBackgroundColor: const Color(0xFF3a3a3a),
+                                    disabledForegroundColor: const Color(0xFF9e9e9e),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),
@@ -2866,6 +2869,41 @@ class _MapHomePageState extends State<MapHomePage> {
 
               const SizedBox(height: 16),
 
+              // Start Navigation button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _currentRoute!.instructions.isNotEmpty
+                        ? () {
+                            Navigator.pop(context); // Close directions sheet
+                            _startLiveNavigation();
+                          }
+                        : null,
+                    icon: const Icon(Icons.navigation),
+                    label: const Text(
+                      'Start Navigation',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF06d6a0),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
               // Directions list - using actual TomTom instructions
               Expanded(
                 child: _currentRoute!.instructions.isEmpty
@@ -2912,6 +2950,22 @@ class _MapHomePageState extends State<MapHomePage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _startLiveNavigation() {
+    if (_currentRoute == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LiveNavigationScreen(
+          route: _currentRoute!,
+          onEndNavigation: () {
+            Navigator.pop(context); // Return to map
+          },
         ),
       ),
     );
