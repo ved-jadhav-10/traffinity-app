@@ -74,6 +74,12 @@ dependencies:
   # URL launcher for opening external links
   url_launcher: ^6.3.1
 
+  # Image picker for camera and gallery
+  image_picker: ^1.1.2
+
+  # Date formatting
+  intl: ^0.19.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
