@@ -392,13 +392,6 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Color(0xFF9e9e9e), fontFamily: 'Poppins'),
-            ),
-          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFf54748),
@@ -412,6 +405,13 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF9e9e9e), fontFamily: 'Poppins'),
             ),
           ),
         ],

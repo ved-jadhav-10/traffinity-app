@@ -1819,13 +1819,6 @@ class _MapHomePageState extends State<MapHomePage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Color(0xFF9e9e9e), fontFamily: 'Poppins'),
-            ),
-          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFf54748),
@@ -1839,6 +1832,13 @@ class _MapHomePageState extends State<MapHomePage> {
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF9e9e9e), fontFamily: 'Poppins'),
             ),
           ),
         ],
