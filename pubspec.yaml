@@ -134,7 +134,7 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/app.png"
 
 flutter_native_splash:
   color: "#1c1c1c"
