@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/transport/train_search_screen.dart';
 
 class TransportPage extends StatefulWidget {
   const TransportPage({super.key});
@@ -67,6 +68,7 @@ class _TransportPageState extends State<TransportPage> {
                   title: 'Public Transport',
                   description: 'View bus, train and metro routes and schedules in your area.',
                   color: const Color(0xFFffa726),
+                  onTap: () => _showPublicTransportOptions(context),
                 ),
                 const SizedBox(height: 16),
 
@@ -145,13 +147,168 @@ class _TransportPageState extends State<TransportPage> {
     );
   }
 
+  // Show public transport options dialog
+  void _showPublicTransportOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF2a2a2a),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9e9e9e),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            const Text(
+              'Select Transport Type',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFf5f6fa),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Trains Option
+            _buildTransportOption(
+              context: context,
+              icon: Icons.train,
+              title: 'Trains',
+              description: 'Search and track Indian Railways trains',
+              color: const Color(0xFF06d6a0),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainSearchScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            
+            // Buses Option (Coming Soon)
+            _buildTransportOption(
+              context: context,
+              icon: Icons.directions_bus,
+              title: 'Buses',
+              description: 'Coming soon',
+              color: const Color(0xFFffa726),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Bus tracking coming soon!'),
+                    backgroundColor: Color(0xFFffa726),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildTransportOption({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1c1c1c),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF3a3a3a),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFf5f6fa),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: Color(0xFF9e9e9e),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF9e9e9e),
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFeatureCard({
     required IconData icon,
     required String title,
     required String description,
     required Color color,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -205,6 +362,7 @@ class _TransportPageState extends State<TransportPage> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
