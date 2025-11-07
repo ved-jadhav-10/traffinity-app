@@ -66,7 +66,7 @@ class _TransportPageState extends State<TransportPage> {
                   icon: Icons.directions_bus,
                   title: 'Public Transport',
                   description: 'View bus, train and metro routes and schedules in your area.',
-                  color: const Color(0xFF06d6a0),
+                  color: const Color(0xFFffa726),
                 ),
                 const SizedBox(height: 16),
 
@@ -80,9 +80,9 @@ class _TransportPageState extends State<TransportPage> {
 
                 _buildFeatureCard(
                   icon: Icons.eco,
-                  title: 'Ride Tracker',
+                  title: 'Impact Tracker',
                   description: 'Compare transportation methods to see your carbon footprint and money saved.',
-                  color: const Color(0xFFffa726),
+                  color: const Color(0xFF06d6a0),
                 ),
                 const SizedBox(height: 16),
 
@@ -163,7 +163,7 @@ class _TransportPageState extends State<TransportPage> {
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(12),

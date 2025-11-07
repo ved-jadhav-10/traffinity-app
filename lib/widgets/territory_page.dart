@@ -56,7 +56,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
                 // Description
                 const Text(
-                  'Explore, discover more, check city updates, and save memories',
+                  'Explore, discover more, check city updates, and save memories.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -71,7 +71,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   icon: Icons.explore,
                   title: 'Explore Nearby',
                   description: 'Discover interesting places around you.',
-                  color: const Color(0xFF06d6a0),
+                  color: const Color(0xFFffa726),
                   onTap: widget.onExploreNearby,
                 ),
                 const SizedBox(height: 16),
@@ -80,7 +80,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   icon: Icons.business_center,
                   title: 'Our Services',
                   description: 'Check our website for more services and features!',
-                  color: const Color(0xFFf54748),
+                  color: const Color(0xFF4a90e2),
                   onTap: _openWebsite,
                 ),
                 const SizedBox(height: 16),
@@ -89,7 +89,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   icon: Icons.report_problem,
                   title: 'City Incident Map',
                   description: 'A live map of all traffic jams, accidents, event or weather related delays.',
-                  color: const Color(0xFF4a90e2),
+                  color: const Color(0xFF06d6a0),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -105,7 +105,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   icon: Icons.collections,
                   title: 'Collections',
                   description: 'Organize places into custom collections.',
-                  color: const Color(0xFFffa726),
+                  color: const Color(0xFFf54728),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -267,7 +267,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
           border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(12),
