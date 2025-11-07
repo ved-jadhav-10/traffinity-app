@@ -55,7 +55,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
                 // Description
                 const Text(
-                  'Explore, discover more, check city updates, save memories and check what your friends are up to!',
+                  'Explore, discover more, check city updates, and save memories',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -105,14 +105,6 @@ class _TerritoryPageState extends State<TerritoryPage> {
                       ),
                     );
                   },
-                ),
-                const SizedBox(height: 16),
-
-                _buildFeatureCard(
-                  icon: Icons.people,
-                  title: 'Friends',
-                  description: 'See what your friends are up to!',
-                  color: const Color(0xFF9c27b0),
                 ),
                 const SizedBox(height: 32),
 
