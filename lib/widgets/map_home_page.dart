@@ -930,37 +930,36 @@ class _MapHomePageState extends State<MapHomePage> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF06d6a0).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.favorite,
-                    color: Color(0xFF06d6a0),
-                    size: 18,
-                  ),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF06d6a0).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.favorite,
+                color: Color(0xFF06d6a0),
+                size: 18,
+              ),
             ),
             const SizedBox(height: 8),
-            Text(
-              favorite['name'],
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFf5f6fa),
+            Flexible(
+              child: Text(
+                favorite['name'],
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFf5f6fa),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-            if (favorite['address'] != null)
+            if (favorite['address'] != null) ...[
+              const SizedBox(height: 4),
               Text(
                 favorite['address'],
                 style: const TextStyle(
@@ -971,6 +970,7 @@ class _MapHomePageState extends State<MapHomePage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            ],
           ],
         ),
       ),
@@ -1454,6 +1454,16 @@ class _MapHomePageState extends State<MapHomePage> {
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(
+                                      Icons.info_outline,
+                                      color: Color(0xFF06d6a0),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _showPlaceInfo(result);
+                                    },
                                   ),
                                   onTap: () {
                                     _selectSearchResult(
@@ -2615,6 +2625,16 @@ class _MapHomePageState extends State<MapHomePage> {
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(
+                                    Icons.info_outline,
+                                    color: Color(0xFF06d6a0),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _showPlaceInfo(result);
+                                  },
                                 ),
                                 onTap: () {
                                   setState(() {
