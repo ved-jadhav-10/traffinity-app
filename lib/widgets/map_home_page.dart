@@ -66,6 +66,10 @@ class _MapHomePageState extends State<MapHomePage> {
   late stt.SpeechToText _speechToText;
   bool _isListening = false;
 
+  // Nearby places categories
+  Set<String> _selectedCategories = {};
+  Map<String, List<SearchResult>> _categoryPlaces = {};
+
   @override
   void initState() {
     super.initState();
@@ -655,6 +659,18 @@ class _MapHomePageState extends State<MapHomePage> {
   Future<void> _searchNearbyPlaces(String category) async {
     if (_currentLocation == null) return;
 
+    // Toggle category selection
+    if (_selectedCategories.contains(category)) {
+      // Deselect category
+      setState(() {
+        _selectedCategories.remove(category);
+        _categoryPlaces.remove(category);
+      });
+      _updateNearbyMarkers();
+      return;
+    }
+
+    // Add category to selection
     List<SearchResult> results = [];
 
     // For parking, search all three types and combine results
@@ -718,26 +734,76 @@ class _MapHomePageState extends State<MapHomePage> {
 
     if (results.isNotEmpty && mounted) {
       setState(() {
-        _markers.clear();
+        _selectedCategories.add(category);
+        _categoryPlaces[category] = results;
+      });
+      _updateNearbyMarkers();
+      _showSnackBar('Found ${results.length} ${_getCategoryDisplayName(category)} nearby');
+    } else if (mounted) {
+      _showSnackBar('No places found nearby');
+    }
+  }
 
-        // Add current location marker
-        if (_currentLocation != null) {
-          _markers.add(
-            Marker(
-              point: _currentLocation!,
-              width: 40,
-              height: 40,
-              child: const Icon(
-                Icons.my_location,
-                color: Color(0xFF06d6a0),
-                size: 40,
-              ),
+  // Update markers to show all selected category places
+  void _updateNearbyMarkers() {
+    setState(() {
+      _markers.clear();
+
+      // Add current location marker
+      if (_currentLocation != null) {
+        _markers.add(
+          Marker(
+            point: _currentLocation!,
+            width: 40,
+            height: 40,
+            child: const Icon(
+              Icons.my_location,
+              color: Color(0xFF06d6a0),
+              size: 40,
             ),
-          );
-        }
+          ),
+        );
+      }
 
-        // Add markers for nearby places
-        for (var result in results) {
+      // Add destination marker if exists
+      if (_selectedDestination != null) {
+        final finalNumber = 2 + _waypoints.length;
+        _markers.add(
+          Marker(
+            point: _selectedDestination!,
+            width: 50,
+            height: 50,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(
+                  Icons.location_on,
+                  color: Color(0xFFf54748),
+                  size: 50,
+                ),
+                Positioned(
+                  top: 8,
+                  child: Text(
+                    finalNumber.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add markers for all selected categories
+      for (var entry in _categoryPlaces.entries) {
+        final category = entry.key;
+        final places = entry.value;
+        
+        for (var result in places) {
           _markers.add(
             Marker(
               point: LatLng(result.latitude, result.longitude),
@@ -755,11 +821,26 @@ class _MapHomePageState extends State<MapHomePage> {
             ),
           );
         }
-      });
+      }
+    });
+  }
 
-      _showSnackBar('Found ${results.length} places nearby');
-    } else if (mounted) {
-      _showSnackBar('No places found nearby');
+  String _getCategoryDisplayName(String category) {
+    switch (category) {
+      case 'petrol station':
+        return 'petrol stations';
+      case 'restaurant':
+        return 'restaurants';
+      case 'parking':
+        return 'parking spots';
+      case 'electric vehicle charging station':
+        return 'charging stations';
+      case 'atm':
+        return 'ATMs';
+      case 'hotel':
+        return 'hotels';
+      default:
+        return 'places';
     }
   }
 
@@ -891,7 +972,13 @@ class _MapHomePageState extends State<MapHomePage> {
       _waypoints.clear(); // Clear all waypoints
       _searchController.clear();
       _showRouteInfo = false;
-      _updateMarkers();
+      
+      // If there were categories selected, restore their markers
+      if (_selectedCategories.isNotEmpty) {
+        _updateNearbyMarkers();
+      } else {
+        _updateMarkers();
+      }
     });
   }
 
@@ -2321,38 +2408,45 @@ class _MapHomePageState extends State<MapHomePage> {
                     children: [
                       _buildCategoryChip(
                         icon: Icons.local_gas_station,
-                        label: 'Gas',
+                        label: 'Petrol Pump',
+                        category: 'petrol station',
                         onTap: () => _searchNearbyPlaces('petrol station'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.restaurant,
                         label: 'Restaurants',
+                        category: 'restaurant',
                         onTap: () => _searchNearbyPlaces('restaurant'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.ev_station,
                         label: 'EV Charging',
+                        category: 'electric vehicle charging station',
                         onTap: () =>
-                            _searchNearbyPlaces('electric vehicle station'),
+                            _searchNearbyPlaces('electric vehicle charging station'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.local_parking,
                         label: 'Parking',
+                        category: 'parking',
                         onTap: () => _searchNearbyPlaces('parking'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.hotel,
                         label: 'Hotels',
+                        category: 'hotel',
                         onTap: () => _searchNearbyPlaces('hotel'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.local_atm,
                         label: 'ATMs',
+                        category: 'atm',
                         onTap: () => _searchNearbyPlaces('atm'),
                       ),
                       _buildCategoryChip(
                         icon: Icons.local_hospital,
                         label: 'Hospitals',
+                        category: 'hospital',
                         onTap: () => _searchNearbyPlaces('hospital'),
                       ),
                       const SizedBox(width: 16), // End padding
@@ -4369,8 +4463,11 @@ class _MapHomePageState extends State<MapHomePage> {
   Widget _buildCategoryChip({
     required IconData icon,
     required String label,
+    required String category,
     required VoidCallback onTap,
   }) {
+    final isSelected = _selectedCategories.contains(category);
+    
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
       child: InkWell(
@@ -4379,20 +4476,27 @@ class _MapHomePageState extends State<MapHomePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF1c1c1c),
+            color: isSelected ? const Color(0xFF06d6a0) : const Color(0xFF1c1c1c),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF06d6a0) : const Color(0xFF3a3a3a),
+              width: 1,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: const Color(0xFF06d6a0), size: 18),
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : const Color(0xFF06d6a0),
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Poppins',
-                  color: Color(0xFFf5f6fa),
+                  color: isSelected ? Colors.white : const Color(0xFFf5f6fa),
                   fontSize: 14,
                 ),
               ),
