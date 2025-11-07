@@ -1109,7 +1109,7 @@ class _MapHomePageState extends State<MapHomePage> {
               ),
 
               ListTile(
-                leading: const Icon(Icons.explore, color: Color(0xFFf5f6fa)),
+                leading: const Icon(Icons.explore, color: Color(0xFF06d6a0)),
                 title: const Text(
                   'Nearby Places',
                   style: TextStyle(
@@ -1127,7 +1127,7 @@ class _MapHomePageState extends State<MapHomePage> {
               const Divider(color: Color(0xFF3a3a3a), height: 1),
 
               ListTile(
-                leading: const Icon(Icons.logout, color: Color(0xFFf5f6fa)),
+                leading: const Icon(Icons.logout, color: Color(0xFF06d6a0)),
                 title: const Text(
                   'Logout',
                   style: TextStyle(

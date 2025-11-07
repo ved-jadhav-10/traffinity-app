@@ -25,7 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isChangingPassword = false;
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -71,11 +70,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
           }
           
-          // If no vehicles, add one empty vehicle
-          if (_vehicles.isEmpty) {
-            _addVehicle();
-          }
-          
           _isLoading = false;
         });
       }
@@ -101,12 +95,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
   
   void _removeVehicle(int index) {
-    if (_vehicles.length > 1) {
-      setState(() {
-        _vehicles[index]['typeController'].dispose();
-        _vehicles.removeAt(index);
-      });
-    }
+    setState(() {
+      _vehicles[index]['typeController'].dispose();
+      _vehicles.removeAt(index);
+    });
   }
   
   Future<void> _saveProfile() async {
@@ -173,7 +165,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _isChangingPassword = false;
           _currentPasswordController.clear();
           _newPasswordController.clear();
           _confirmPasswordController.clear();
@@ -299,25 +290,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
                     
-                    // Vehicle List
-                    ..._vehicles.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final vehicle = entry.value;
-                      return _buildVehicleCard(index, vehicle);
-                    }).toList(),
+                    // Show vehicle cards if any exist
+                    if (_vehicles.isNotEmpty)
+                      ..._vehicles.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final vehicle = entry.value;
+                        return _buildVehicleCard(index, vehicle);
+                      }).toList(),
                     
                     // Add Vehicle Button
                     if (_vehicles.length < 3)
                       Center(
-                        child: TextButton.icon(
+                        child: OutlinedButton.icon(
                           onPressed: _addVehicle,
                           icon: const Icon(Icons.add, color: Color(0xFF06d6a0)),
-                          label: const Text(
-                            'Add Vehicle',
-                            style: TextStyle(
+                          label: Text(
+                            _vehicles.isEmpty ? 'Add Vehicle' : 'Add Another Vehicle',
+                            style: const TextStyle(
                               fontFamily: 'Poppins',
                               color: Color(0xFF06d6a0),
                               fontSize: 15,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF06d6a0)),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
@@ -328,129 +327,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSectionTitle('Change Password'),
                     const SizedBox(height: 16),
                     
-                    if (!_isChangingPassword)
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() => _isChangingPassword = true);
-                        },
+                    _buildPasswordField(
+                      controller: _currentPasswordController,
+                      label: 'Current Password',
+                      obscureText: _obscureCurrentPassword,
+                      onToggle: () {
+                        setState(() {
+                          _obscureCurrentPassword = !_obscureCurrentPassword;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPasswordField(
+                      controller: _newPasswordController,
+                      label: 'New Password',
+                      obscureText: _obscureNewPassword,
+                      onToggle: () {
+                        setState(() {
+                          _obscureNewPassword = !_obscureNewPassword;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPasswordField(
+                      controller: _confirmPasswordController,
+                      label: 'Confirm New Password',
+                      obscureText: _obscureConfirmPassword,
+                      onToggle: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Update Password Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _changePassword,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2a2a2a),
-                          foregroundColor: const Color(0xFFf5f6fa),
+                          backgroundColor: const Color(0xFF06d6a0),
+                          foregroundColor: const Color(0xFF1c1c1c),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Change Password',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 15,
-                          ),
-                        ),
-                      )
-                    else
-                      Column(
-                        children: [
-                          _buildPasswordField(
-                            controller: _currentPasswordController,
-                            label: 'Current Password',
-                            obscureText: _obscureCurrentPassword,
-                            onToggle: () {
-                              setState(() {
-                                _obscureCurrentPassword = !_obscureCurrentPassword;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _buildPasswordField(
-                            controller: _newPasswordController,
-                            label: 'New Password',
-                            obscureText: _obscureNewPassword,
-                            onToggle: () {
-                              setState(() {
-                                _obscureNewPassword = !_obscureNewPassword;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _buildPasswordField(
-                            controller: _confirmPasswordController,
-                            label: 'Confirm New Password',
-                            obscureText: _obscureConfirmPassword,
-                            onToggle: () {
-                              setState(() {
-                                _obscureConfirmPassword = !_obscureConfirmPassword;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _isChangingPassword = false;
-                                      _currentPasswordController.clear();
-                                      _newPasswordController.clear();
-                                      _confirmPasswordController.clear();
-                                    });
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF9e9e9e),
-                                    side: const BorderSide(color: Color(0xFF3a3a3a)),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontSize: 15,
-                                    ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF1c1c1c),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isSaving ? null : _changePassword,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF06d6a0),
-                                    foregroundColor: const Color(0xFF1c1c1c),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: _isSaving
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              Color(0xFF1c1c1c),
-                                            ),
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Update',
-                                          style: TextStyle(
-                                            fontFamily: 'Poppins',
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
+                              )
+                            : const Text(
+                                'Update Password',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
                       ),
+                    ),
                     const SizedBox(height: 32),
                     
                     // Save Button
@@ -466,7 +411,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: _isSaving && !_isChangingPassword
+                        child: _isSaving
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
@@ -523,8 +468,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: Color(0xFFf5f6fa),
       ),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
+        hintText: label,
+        hintStyle: const TextStyle(
           fontFamily: 'Poppins',
           color: Color(0xFF9e9e9e),
         ),
@@ -571,8 +516,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: Color(0xFFf5f6fa),
       ),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
+        hintText: label,
+        hintStyle: const TextStyle(
           fontFamily: 'Poppins',
           color: Color(0xFF9e9e9e),
         ),
