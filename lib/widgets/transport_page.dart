@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/transport/train_search_screen.dart';
+import '../screens/transport/bus_search_screen.dart';
 
 class TransportPage extends StatefulWidget {
   const TransportPage({super.key});
@@ -66,7 +67,8 @@ class _TransportPageState extends State<TransportPage> {
                 _buildFeatureCard(
                   icon: Icons.directions_bus,
                   title: 'Public Transport',
-                  description: 'View bus, train and metro routes and schedules in your area.',
+                  description:
+                      'View bus, train and metro routes and schedules in your area.',
                   color: const Color(0xFFffa726),
                   onTap: () => _showPublicTransportOptions(context),
                 ),
@@ -83,7 +85,8 @@ class _TransportPageState extends State<TransportPage> {
                 _buildFeatureCard(
                   icon: Icons.eco,
                   title: 'Impact Tracker',
-                  description: 'Compare transportation methods to see your carbon footprint and money saved.',
+                  description:
+                      'Compare transportation methods to see your carbon footprint and money saved.',
                   color: const Color(0xFF06d6a0),
                 ),
                 const SizedBox(height: 16),
@@ -173,7 +176,7 @@ class _TransportPageState extends State<TransportPage> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             const Text(
               'Select Transport Type',
               style: TextStyle(
@@ -184,7 +187,7 @@ class _TransportPageState extends State<TransportPage> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Trains Option
             _buildTransportOption(
               context: context,
@@ -203,20 +206,20 @@ class _TransportPageState extends State<TransportPage> {
               },
             ),
             const SizedBox(height: 16),
-            
+
             // Buses Option (Coming Soon)
             _buildTransportOption(
               context: context,
               icon: Icons.directions_bus,
               title: 'Buses',
-              description: 'Coming soon',
+              description: 'Search and track city buses',
               color: const Color(0xFFffa726),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Bus tracking coming soon!'),
-                    backgroundColor: Color(0xFFffa726),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BusSearchScreen(),
                   ),
                 );
               },
@@ -227,7 +230,7 @@ class _TransportPageState extends State<TransportPage> {
       ),
     );
   }
-  
+
   Widget _buildTransportOption({
     required BuildContext context,
     required IconData icon,
@@ -243,10 +246,7 @@ class _TransportPageState extends State<TransportPage> {
         decoration: BoxDecoration(
           color: const Color(0xFF1c1c1c),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF3a3a3a),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
         child: Row(
           children: [
@@ -256,11 +256,7 @@ class _TransportPageState extends State<TransportPage> {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
+              child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -309,60 +305,53 @@ class _TransportPageState extends State<TransportPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2a2a2a),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF3a3a3a),
-          width: 1,
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2a2a2a),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFf5f6fa),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFf5f6fa),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: Color(0xFF9e9e9e),
-                    height: 1.4,
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      color: Color(0xFF9e9e9e),
+                      height: 1.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

@@ -41,10 +41,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
   Future<Station?> _showStationSearchDialog(String title) async {
     return showDialog<Station>(
       context: context,
-      builder: (context) => _StationSearchDialog(
-        title: title,
-        railwaysService: _railwaysService,
-      ),
+      builder: (context) =>
+          _StationSearchDialog(title: title, railwaysService: _railwaysService),
     );
   }
 
@@ -53,7 +51,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
     print('🔍 Search button clicked');
     print('From: ${_fromStation?.name} (${_fromStation?.code})');
     print('To: ${_toStation?.name} (${_toStation?.code})');
-    
+
     if (_fromStation == null || _toStation == null) {
       print('❌ Missing station selection');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,7 +95,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
   Future<void> _searchPNRStatus() async {
     final pnrNumber = _pnrController.text.trim();
     print('🔍 Searching for PNR: $pnrNumber');
-    
+
     if (pnrNumber.isEmpty) {
       print('❌ Empty PNR number');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,10 +198,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildStationToStationTab(),
-          _buildPNRStatusTab(),
-        ],
+        children: [_buildStationToStationTab(), _buildPNRStatusTab()],
       ),
     );
   }
@@ -220,7 +215,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
             label: 'From',
             station: _fromStation,
             onTap: () async {
-              final station = await _showStationSearchDialog('Select Source Station');
+              final station = await _showStationSearchDialog(
+                'Select Source Station',
+              );
               if (station != null) {
                 setState(() => _fromStation = station);
               }
@@ -238,10 +235,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                   color: const Color(0xFF2a2a2a),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.swap_vert,
-                  color: Color(0xFF06d6a0),
-                ),
+                child: const Icon(Icons.swap_vert, color: Color(0xFF06d6a0)),
               ),
             ),
           ),
@@ -252,7 +246,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
             label: 'To',
             station: _toStation,
             onTap: () async {
-              final station = await _showStationSearchDialog('Select Destination Station');
+              final station = await _showStationSearchDialog(
+                'Select Destination Station',
+              );
               if (station != null) {
                 setState(() => _toStation = station);
               }
@@ -380,7 +376,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : const Text(
@@ -431,7 +429,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                       ],
                     ),
                     const Divider(color: Color(0xFF3a3a3a), height: 24),
-                    
+
                     // Train Details
                     Row(
                       children: [
@@ -469,27 +467,33 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Journey Date
                     _buildInfoRow('Date of Journey', _pnrStatus!.dateOfJourney),
                     const SizedBox(height: 12),
-                    
+
                     // Boarding Station
-                    _buildInfoRow('Boarding Station', _pnrStatus!.boardingStation),
+                    _buildInfoRow(
+                      'Boarding Station',
+                      _pnrStatus!.boardingStation,
+                    ),
                     const SizedBox(height: 12),
-                    
+
                     // Destination Station
-                    _buildInfoRow('Destination', _pnrStatus!.destinationStation),
+                    _buildInfoRow(
+                      'Destination',
+                      _pnrStatus!.destinationStation,
+                    ),
                     const SizedBox(height: 12),
-                    
+
                     // Chart Status
                     _buildInfoRow('Chart Status', _pnrStatus!.chartStatus),
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Passengers Section
               const Text(
                 'Passenger Details',
@@ -501,41 +505,43 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              
-              ..._pnrStatus!.passengers.map((passenger) => Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2a2a2a),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF3a3a3a)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Passenger ${passenger.passengerNumber}',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFf5f6fa),
+
+              ..._pnrStatus!.passengers.map(
+                (passenger) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2a2a2a),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF3a3a3a)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Passenger ${passenger.passengerNumber}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFf5f6fa),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoRow('Booking Status', passenger.bookingStatus),
-                    const SizedBox(height: 8),
-                    _buildInfoRow('Current Status', passenger.currentStatus),
-                  ],
+                      const SizedBox(height: 12),
+                      _buildInfoRow('Booking Status', passenger.bookingStatus),
+                      const SizedBox(height: 8),
+                      _buildInfoRow('Current Status', passenger.currentStatus),
+                    ],
+                  ),
                 ),
-              )),
+              ),
             ],
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildInfoRow(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -577,10 +583,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF2a2a2a),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF3a3a3a),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFF3a3a3a), width: 1),
         ),
         child: Row(
           children: [
@@ -1017,10 +1020,7 @@ class _StationSearchDialogState extends State<_StationSearchDialog> {
                   fontFamily: 'Poppins',
                   color: Color(0xFF7a7a7a),
                 ),
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: Color(0xFF06d6a0),
-                ),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF06d6a0)),
                 filled: true,
                 fillColor: const Color(0xFF1c1c1c),
                 border: OutlineInputBorder(
