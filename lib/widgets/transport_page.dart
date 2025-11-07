@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/transport/train_search_screen.dart';
 import '../screens/transport/bus_search_screen.dart';
+import '../screens/transport/impact_tracker_calculator.dart';
 
 class TransportPage extends StatefulWidget {
   const TransportPage({super.key});
@@ -88,6 +89,14 @@ class _TransportPageState extends State<TransportPage> {
                   description:
                       'Compare transportation methods to see your carbon footprint and money saved.',
                   color: const Color(0xFF06d6a0),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ImpactTrackerCalculator(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 

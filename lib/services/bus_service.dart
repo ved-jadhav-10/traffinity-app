@@ -490,7 +490,8 @@ class BusService {
     if (routeNumber.startsWith('AS')) return 'AC';
     if (routeNumber.startsWith('G-')) return 'Volvo AC';
     if (routeNumber.startsWith('R-')) return 'AC Express';
-    if (routeNumber == '5A' || routeNumber == '22B' || routeNumber == '31') return 'Non-AC';
+    if (routeNumber == '5A' || routeNumber == '22B' || routeNumber == '31')
+      return 'Non-AC';
     if (routeNumber == '14') return 'AC';
     return 'Rainbow AC';
   }
@@ -499,11 +500,12 @@ class BusService {
     if (routeNumber.startsWith('AS') || routeNumber == '37') return 'BEST';
     if (routeNumber == '764' || routeNumber == '534') return 'DTC';
     if (routeNumber.startsWith('G-') || routeNumber == '500K') return 'BMTC';
-    if (routeNumber.startsWith('R-') || 
-        routeNumber == '5A' || 
-        routeNumber == '14' || 
-        routeNumber == '22B' || 
-        routeNumber == '31') return 'Nagar Nigam Raipur';
+    if (routeNumber.startsWith('R-') ||
+        routeNumber == '5A' ||
+        routeNumber == '14' ||
+        routeNumber == '22B' ||
+        routeNumber == '31')
+      return 'Nagar Nigam Raipur';
     return 'PMPML';
   }
 
@@ -687,11 +689,7 @@ class BusService {
     // Sample stops for 5A (Raipur)
     if (routeNumber == '5A') {
       return [
-        BusStopInfo(
-          stopName: 'Pandri Chowk',
-          arrivalTime: '--',
-          stopNumber: 1,
-        ),
+        BusStopInfo(stopName: 'Pandri Chowk', arrivalTime: '--', stopNumber: 1),
         BusStopInfo(
           stopName: 'Gurudwara Chowk',
           arrivalTime: '5 mins',
