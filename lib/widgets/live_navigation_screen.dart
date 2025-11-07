@@ -10,6 +10,7 @@ import '../models/traffic_model.dart';
 import '../services/navigation_service.dart';
 import '../services/tomtom_service.dart';
 import '../services/weather_service.dart';
+import '../services/supabase_service.dart';
 import '../config/tomtom_config.dart';
 import '../config/app_theme.dart';
 
@@ -31,6 +32,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   final NavigationService _navigationService = NavigationService();
   final TomTomService _tomtomService = TomTomService();
   final WeatherService _weatherService = WeatherService();
+  final SupabaseService _supabaseService = SupabaseService();
   final FlutterTts _flutterTts = FlutterTts();
   final MapController _mapController = MapController();
 
@@ -345,6 +347,180 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
     }
   }
 
+  // Show SOS confirmation and create emergency incident
+  Future<void> _showSOSConfirmation() async {
+    if (_currentPosition == null) {
+      _showNotification(
+        'Location Unavailable',
+        'Please enable location services.',
+        Colors.red,
+        Icons.location_off,
+      );
+      return;
+    }
+
+    final shouldReport = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2a2a2a),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning, color: Color(0xFFf54748), size: 28),
+            SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                'Emergency SOS',
+                style: TextStyle(
+                  color: Color(0xFFf5f6fa),
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'This will report a severe accident at your current location. Emergency services and nearby users will be notified.\n\nAre you sure you want to proceed?',
+            style: TextStyle(
+              color: Color(0xFF9e9e9e),
+              fontFamily: 'Poppins',
+              fontSize: 14,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF9e9e9e), fontFamily: 'Poppins'),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFf54748),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Report Emergency',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldReport == true) {
+      await _reportSOSIncident();
+    }
+  }
+
+  // Report SOS incident to Supabase
+  Future<void> _reportSOSIncident() async {
+    try {
+      // Get user profile for contact details
+      final userProfile = await _supabaseService.getUserProfile();
+      final phoneNumber = userProfile['phone_number'] ?? '';
+      final userName = userProfile['name'] ?? 'User';
+
+      // Create description with contact info if available
+      String description = 'EMERGENCY - Accident reported via SOS during navigation';
+      if (phoneNumber.isNotEmpty) {
+        description += '\nContact: $userName - $phoneNumber';
+      } else {
+        description += '\nContact: $userName';
+      }
+
+      // Report the incident
+      await _supabaseService.reportTrafficIncident(
+        incidentType: 'accident',
+        severity: 'Severe',
+        latitude: _currentPosition!.latitude,
+        longitude: _currentPosition!.longitude,
+        durationMinutes: 60, // Default to 1 hour
+        description: description,
+      );
+
+      if (mounted) {
+        _showNotification(
+          'Emergency Reported',
+          'Help is on the way! Nearby users have been notified.',
+          AppTheme.primaryGreen,
+          Icons.check_circle,
+        );
+
+        // Show success dialog
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2a2a2a),
+            title: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, color: Color(0xFF06d6a0), size: 28),
+                SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    'Emergency Reported',
+                    style: TextStyle(
+                      color: Color(0xFFf5f6fa),
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: const SingleChildScrollView(
+              child: Text(
+                'Your emergency has been reported. Nearby users and emergency services have been notified of the accident.',
+                style: TextStyle(
+                  color: Color(0xFF9e9e9e),
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF06d6a0),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showNotification(
+          'Error',
+          'Failed to report emergency: ${e.toString()}',
+          Colors.red,
+          Icons.error,
+        );
+      }
+    }
+  }
+
   IconData _getManeuverIcon(String maneuver) {
     final maneuverUpper = maneuver.toUpperCase();
 
@@ -418,6 +594,34 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
                     // Mute button
                     _buildMuteButton(),
                   ],
+                ),
+              ),
+
+              // SOS Button (right side, above compass)
+              Positioned(
+                right: 16,
+                bottom: 222,
+                child: Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFf54748),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 48,
+                    onPressed: _showSOSConfirmation,
+                    icon: const Icon(Icons.warning, size: 40, color: Colors.white),
+                    tooltip: 'Emergency SOS - Report Accident',
+                  ),
                 ),
               ),
 
