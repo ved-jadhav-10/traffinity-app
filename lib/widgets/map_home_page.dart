@@ -2866,41 +2866,49 @@ class _MapHomePageState extends State<MapHomePage> {
 
               const SizedBox(height: 16),
 
-              // Directions list (placeholder for now)
+              // Directions list - using actual TomTom instructions
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _buildDirectionStep(
-                      icon: Icons.my_location,
-                      instruction: 'Start at $_startLocationName',
-                      distance: '',
-                    ),
-                    _buildDirectionStep(
-                      icon: Icons.straight,
-                      instruction: 'Head toward your destination',
-                      distance: '0.5 km',
-                    ),
-                    _buildDirectionStep(
-                      icon: Icons.turn_right,
-                      instruction: 'Turn right',
-                      distance: '1.2 km',
-                    ),
-                    _buildDirectionStep(
-                      icon: Icons.straight,
-                      instruction: 'Continue straight',
-                      distance: '2.8 km',
-                    ),
-                    _buildDirectionStep(
-                      icon: Icons.location_on,
-                      instruction: 'Arrive at $_destinationLocationName',
-                      distance: '',
-                      isLast: true,
-                    ),
-                    const SizedBox(height: 80),
-                  ],
-                ),
+                child: _currentRoute!.instructions.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              color: Color(0xFF9e9e9e),
+                              size: 48,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No turn-by-turn instructions available',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                color: Color(0xFF9e9e9e),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _currentRoute!.instructions.length,
+                        itemBuilder: (context, index) {
+                          final instruction =
+                              _currentRoute!.instructions[index];
+                          final isLast =
+                              index == _currentRoute!.instructions.length - 1;
+
+                          return _buildDirectionStep(
+                            icon: _getManeuverIcon(instruction.maneuver),
+                            instruction: instruction.instruction,
+                            distance: instruction.formattedDistance,
+                            street: instruction.street,
+                            isLast: isLast,
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -2913,6 +2921,7 @@ class _MapHomePageState extends State<MapHomePage> {
     required IconData icon,
     required String instruction,
     required String distance,
+    String? street,
     bool isLast = false,
   }) {
     return Padding(
@@ -2956,24 +2965,82 @@ class _MapHomePageState extends State<MapHomePage> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (distance.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Text(
-                      distance,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 13,
-                        color: Color(0xFF9e9e9e),
-                      ),
+                if (street != null && street.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    street,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: Color(0xFF9e9e9e),
                     ),
                   ),
+                ],
+                if (distance.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    distance,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: Color(0xFF06d6a0),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  // Map TomTom maneuver types to icons
+  IconData _getManeuverIcon(String maneuver) {
+    final maneuverUpper = maneuver.toUpperCase();
+
+    if (maneuverUpper.contains('DEPART') || maneuverUpper.contains('START')) {
+      return Icons.my_location;
+    } else if (maneuverUpper.contains('ARRIVE') ||
+        maneuverUpper.contains('FINISH')) {
+      return Icons.location_on;
+    } else if (maneuverUpper.contains('LEFT')) {
+      if (maneuverUpper.contains('SHARP')) {
+        return Icons.turn_sharp_left;
+      } else if (maneuverUpper.contains('SLIGHT')) {
+        return Icons.turn_slight_left;
+      }
+      return Icons.turn_left;
+    } else if (maneuverUpper.contains('RIGHT')) {
+      if (maneuverUpper.contains('SHARP')) {
+        return Icons.turn_sharp_right;
+      } else if (maneuverUpper.contains('SLIGHT')) {
+        return Icons.turn_slight_right;
+      }
+      return Icons.turn_right;
+    } else if (maneuverUpper.contains('UTURN') ||
+        maneuverUpper.contains('U_TURN')) {
+      return Icons.u_turn_left;
+    } else if (maneuverUpper.contains('ROUNDABOUT') ||
+        maneuverUpper.contains('ROTARY')) {
+      return Icons.roundabout_left;
+    } else if (maneuverUpper.contains('MERGE')) {
+      return Icons.merge;
+    } else if (maneuverUpper.contains('FORK')) {
+      return Icons.fork_left;
+    } else if (maneuverUpper.contains('RAMP') ||
+        maneuverUpper.contains('EXIT')) {
+      return Icons.exit_to_app;
+    } else if (maneuverUpper.contains('FERRY')) {
+      return Icons.directions_ferry;
+    } else if (maneuverUpper.contains('STRAIGHT') ||
+        maneuverUpper.contains('CONTINUE')) {
+      return Icons.straight;
+    }
+
+    // Default icon
+    return Icons.navigation;
   }
 
   String _getArrivalTime() {

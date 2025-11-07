@@ -118,7 +118,8 @@ class TrafficSection {
       travelTimeInSeconds: json['travelTimeInSeconds'] ?? 0,
       delayInSeconds: json['delayInSeconds'] ?? 0,
       simpleCategory: json['simpleCategory']?.toString() ?? 'OTHER',
-      effectiveSpeedInKmh: (json['effectiveSpeedInKmh'] as num?)?.toDouble() ?? 0.0,
+      effectiveSpeedInKmh:
+          (json['effectiveSpeedInKmh'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -129,6 +130,7 @@ class RouteInfo {
   final int travelTimeInSeconds;
   final String? trafficDelayInSeconds;
   final List<TrafficSection> trafficSections;
+  final List<RouteInstruction> instructions; // Turn-by-turn instructions
   final int? historicTrafficTravelTimeInSeconds;
   final int? liveTrafficIncidentsTravelTimeInSeconds;
   final String routeId;
@@ -139,6 +141,7 @@ class RouteInfo {
     required this.travelTimeInSeconds,
     this.trafficDelayInSeconds,
     this.trafficSections = const [],
+    this.instructions = const [],
     this.historicTrafficTravelTimeInSeconds,
     this.liveTrafficIncidentsTravelTimeInSeconds,
     String? routeId,
@@ -208,7 +211,7 @@ class RouteInfo {
 
     // Fallback: Use traffic delay from summary if no sections available
     final delayMinutes = trafficDelaySeconds / 60;
-    
+
     if (delayMinutes == 0) return 'Light';
     if (delayMinutes < 5) return 'Light';
     if (delayMinutes < 10) return 'Moderate';
@@ -251,4 +254,57 @@ class DepartureTimeOption {
   }
 
   int get totalTimeInSeconds => travelTimeInSeconds + trafficDelayInSeconds;
+}
+
+class RouteInstruction {
+  final String
+  instruction; // The instruction text (e.g., "Turn right onto Main St")
+  final String
+  maneuver; // Type of maneuver (e.g., "TURN_RIGHT", "TURN_LEFT", "STRAIGHT")
+  final int distanceInMeters; // Distance to this instruction
+  final int travelTimeInSeconds; // Time to reach this instruction
+  final LatLng? point; // GPS coordinate of the instruction point
+  final String? roadNumbers; // Road/highway numbers
+  final String? street; // Street name
+  final int? exitNumber; // Exit number for roundabouts/highways
+
+  RouteInstruction({
+    required this.instruction,
+    required this.maneuver,
+    required this.distanceInMeters,
+    required this.travelTimeInSeconds,
+    this.point,
+    this.roadNumbers,
+    this.street,
+    this.exitNumber,
+  });
+
+  String get formattedDistance {
+    if (distanceInMeters < 1000) {
+      return '${distanceInMeters}m';
+    } else {
+      return '${(distanceInMeters / 1000).toStringAsFixed(1)}km';
+    }
+  }
+
+  factory RouteInstruction.fromJson(Map<String, dynamic> json) {
+    LatLng? instructionPoint;
+    if (json['point'] != null) {
+      instructionPoint = LatLng(
+        json['point']['latitude'],
+        json['point']['longitude'],
+      );
+    }
+
+    return RouteInstruction(
+      instruction: json['message'] ?? json['instruction'] ?? 'Continue',
+      maneuver: json['maneuver'] ?? 'STRAIGHT',
+      distanceInMeters: json['routeOffsetInMeters'] ?? 0,
+      travelTimeInSeconds: json['travelTimeInSeconds'] ?? 0,
+      point: instructionPoint,
+      roadNumbers: json['roadNumbers']?.join(', '),
+      street: json['street'],
+      exitNumber: json['exitNumber'],
+    );
+  }
 }

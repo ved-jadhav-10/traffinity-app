@@ -67,7 +67,8 @@ class TomTomService {
 
       final url = Uri.parse(
         '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
-        '?key=$_apiKey&traffic=true&travelMode=car&sectionType=traffic&computeTravelTimeFor=all',
+        '?key=$_apiKey&traffic=true&travelMode=car&sectionType=traffic'
+        '&computeTravelTimeFor=all&instructionsType=text&language=en-US',
       );
 
       final response = await http.get(url);
@@ -107,12 +108,30 @@ class TomTomService {
           print('⚠️ No sections in route response');
         }
 
+        // Parse turn-by-turn instructions from guidance
+        List<RouteInstruction> instructions = [];
+        if (route['guidance'] != null &&
+            route['guidance']['instructions'] != null) {
+          final guidanceInstructions =
+              route['guidance']['instructions'] as List;
+          print(
+            '🧭 Total instructions received: ${guidanceInstructions.length}',
+          );
+          for (var instruction in guidanceInstructions) {
+            instructions.add(RouteInstruction.fromJson(instruction));
+          }
+          print('✅ Parsed ${instructions.length} navigation instructions');
+        } else {
+          print('⚠️ No guidance instructions in route response');
+        }
+
         return RouteInfo(
           coordinates: coordinates,
           distanceInMeters: summary['lengthInMeters'].toDouble(),
           travelTimeInSeconds: summary['travelTimeInSeconds'],
           trafficDelayInSeconds: summary['trafficDelayInSeconds']?.toString(),
           trafficSections: trafficSections,
+          instructions: instructions,
           historicTrafficTravelTimeInSeconds:
               summary['historicTrafficTravelTimeInSeconds'],
           liveTrafficIncidentsTravelTimeInSeconds:
@@ -152,7 +171,7 @@ class TomTomService {
         '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
         '?key=$_apiKey&traffic=true&travelMode=car&sectionType=traffic'
         '&computeTravelTimeFor=all&maxAlternatives=$maxAlternatives'
-        '&alternativeType=anyRoute',
+        '&alternativeType=anyRoute&instructionsType=text&language=en-US',
       );
 
       final response = await http.get(url);
@@ -190,7 +209,21 @@ class TomTomService {
               }
             }
           }
-          print('Route $i: ${trafficSections.length} traffic sections, delay: ${summary['trafficDelayInSeconds']}s');
+
+          // Parse turn-by-turn instructions
+          List<RouteInstruction> instructions = [];
+          if (route['guidance'] != null &&
+              route['guidance']['instructions'] != null) {
+            final guidanceInstructions =
+                route['guidance']['instructions'] as List;
+            for (var instruction in guidanceInstructions) {
+              instructions.add(RouteInstruction.fromJson(instruction));
+            }
+          }
+
+          print(
+            'Route $i: ${trafficSections.length} traffic sections, ${instructions.length} instructions, delay: ${summary['trafficDelayInSeconds']}s',
+          );
 
           alternativeRoutes.add(
             RouteInfo(
@@ -200,6 +233,7 @@ class TomTomService {
               trafficDelayInSeconds: summary['trafficDelayInSeconds']
                   ?.toString(),
               trafficSections: trafficSections,
+              instructions: instructions,
               historicTrafficTravelTimeInSeconds:
                   summary['historicTrafficTravelTimeInSeconds'],
               liveTrafficIncidentsTravelTimeInSeconds:
