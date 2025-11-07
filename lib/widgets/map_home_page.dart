@@ -460,12 +460,6 @@ class _MapHomePageState extends State<MapHomePage> {
     );
   }
 
-  void _recenterMap() {
-    if (_currentLocation != null) {
-      _mapController.move(_currentLocation!, 14.0);
-    }
-  }
-
   Future<void> _showNearbyPlaces() async {
     if (_currentLocation == null) {
       _showSnackBar('Location not available');
@@ -2250,26 +2244,6 @@ class _MapHomePageState extends State<MapHomePage> {
       _waypoints.removeAt(index);
     });
     _getDirections(); // Recalculate route
-  }
-
-  void _swapStartAndDestination() {
-    if (_currentLocation != null && _selectedDestination != null) {
-      setState(() {
-        // Swap locations
-        final tempLocation = _currentLocation;
-        _currentLocation = _selectedDestination;
-        _selectedDestination = tempLocation;
-
-        // Swap names
-        final tempName = _startLocationName;
-        _startLocationName = _destinationLocationName;
-        _destinationLocationName = tempName;
-      });
-      // Recalculate route after swap
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _getDirections();
-      });
-    }
   }
 
   void _showDirectionsSheet() {
