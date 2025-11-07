@@ -86,10 +86,13 @@ class _MapHomePageState extends State<MapHomePage> {
               point: _currentLocation!,
               width: 40,
               height: 40,
-              child: const Icon(
-                Icons.my_location,
-                color: Color(0xFF06d6a0),
-                size: 40,
+              child: Transform.rotate(
+                angle: _compassHeading * (math.pi / 180),
+                child: const Icon(
+                  Icons.navigation,
+                  color: Color(0xFF06d6a0),
+                  size: 40,
+                ),
               ),
             ),
           );
@@ -122,9 +125,33 @@ class _MapHomePageState extends State<MapHomePage> {
       if (mounted) {
         setState(() {
           _compassHeading = event.heading ?? 0.0;
+          // Update the user location marker rotation if it exists
+          _updateUserLocationMarker();
         });
       }
     });
+  }
+
+  void _updateUserLocationMarker() {
+    if (_currentLocation != null && _currentRoute == null) {
+      // Only update the marker when there's no active route
+      _markers.removeWhere((marker) => marker.point == _currentLocation);
+      _markers.add(
+        Marker(
+          point: _currentLocation!,
+          width: 40,
+          height: 40,
+          child: Transform.rotate(
+            angle: _compassHeading * (math.pi / 180),
+            child: const Icon(
+              Icons.navigation,
+              color: Color(0xFF06d6a0),
+              size: 40,
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _initializeSpeechToText() async {
@@ -150,6 +177,9 @@ class _MapHomePageState extends State<MapHomePage> {
       await _speechToText.stop();
       setState(() => _isListening = false);
     } else {
+      // Open search sheet first
+      _showSearchSheet();
+      
       bool available = await _speechToText.initialize();
       if (available) {
         setState(() => _isListening = true);
@@ -1608,38 +1638,7 @@ class _MapHomePageState extends State<MapHomePage> {
             ),
           ),
 
-          // Compass button (above recenter button)
-          Positioned(
-            right: 16,
-            bottom: _showRouteInfo ? 390 : 190,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1c1c1c),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                iconSize: 28,
-                onPressed: _resetMapRotation,
-                icon: Transform.rotate(
-                  angle: -_compassHeading * (math.pi / 180),
-                  child: const Icon(
-                    Icons.navigation,
-                    color: Color(0xFF06d6a0),
-                  ),
-                ),
-                tooltip: 'Compass',
-              ),
-            ),
-          ),
-
-          // Recenter button
+          // Compass button (replaces My Location button)
           Positioned(
             right: 16,
             bottom: _showRouteInfo ? 320 : 120,
@@ -1657,9 +1656,17 @@ class _MapHomePageState extends State<MapHomePage> {
               ),
               child: IconButton(
                 iconSize: 28,
-                onPressed: _recenterMap,
-                icon: const Icon(Icons.my_location, color: Color(0xFF06d6a0)),
-                tooltip: 'My Location',
+                onPressed: _resetMapRotation,
+                icon: Transform.rotate(
+                  angle: -_compassHeading * (math.pi / 180),
+                  child: Image.asset(
+                    'assets/icons/compass.png',
+                    width: 28,
+                    height: 28,
+                    color: const Color(0xFF06d6a0),
+                  ),
+                ),
+                tooltip: 'Compass - Recenter & Reset North',
               ),
             ),
           ),
