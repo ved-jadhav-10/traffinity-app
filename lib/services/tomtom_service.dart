@@ -94,11 +94,17 @@ class TomTomService {
         List<TrafficSection> trafficSections = [];
         if (route['sections'] != null) {
           final sections = route['sections'] as List;
+          print('📊 Total sections received: ${sections.length}');
           for (var section in sections) {
+            print('Section type: ${section['sectionType']}');
             if (section['sectionType'] == 'TRAFFIC') {
+              print('🚦 Traffic section found: ${section['simpleCategory']}');
               trafficSections.add(TrafficSection.fromJson(section));
             }
           }
+          print('✅ Parsed ${trafficSections.length} traffic sections');
+        } else {
+          print('⚠️ No sections in route response');
         }
 
         return RouteInfo(
@@ -107,7 +113,7 @@ class TomTomService {
           travelTimeInSeconds: summary['travelTimeInSeconds'],
           trafficDelayInSeconds: summary['trafficDelayInSeconds']?.toString(),
           trafficSections: trafficSections,
-          historicTrafficTravelTimeInSeconds: 
+          historicTrafficTravelTimeInSeconds:
               summary['historicTrafficTravelTimeInSeconds'],
           liveTrafficIncidentsTravelTimeInSeconds:
               summary['liveTrafficIncidentsTravelTimeInSeconds'],
@@ -154,7 +160,7 @@ class TomTomService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final routes = data['routes'] as List;
-        
+
         List<RouteInfo> alternativeRoutes = [];
 
         for (int i = 0; i < routes.length; i++) {
@@ -184,13 +190,15 @@ class TomTomService {
               }
             }
           }
+          print('Route $i: ${trafficSections.length} traffic sections, delay: ${summary['trafficDelayInSeconds']}s');
 
           alternativeRoutes.add(
             RouteInfo(
               coordinates: coordinates,
               distanceInMeters: summary['lengthInMeters'].toDouble(),
               travelTimeInSeconds: summary['travelTimeInSeconds'],
-              trafficDelayInSeconds: summary['trafficDelayInSeconds']?.toString(),
+              trafficDelayInSeconds: summary['trafficDelayInSeconds']
+                  ?.toString(),
               trafficSections: trafficSections,
               historicTrafficTravelTimeInSeconds:
                   summary['historicTrafficTravelTimeInSeconds'],
@@ -224,10 +232,10 @@ class TomTomService {
 
     for (int i = 0; i < hoursAhead; i++) {
       final departureTime = now.add(Duration(hours: i));
-      
+
       try {
         String routePoints = '$startLat,$startLon:$endLat,$endLon';
-        
+
         final url = Uri.parse(
           '$_baseUrl/routing/1/calculateRoute/$routePoints/json'
           '?key=$_apiKey&traffic=true&travelMode=car'

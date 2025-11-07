@@ -50,7 +50,7 @@ class _MapHomePageState extends State<MapHomePage> {
   String _startLocationName = 'My Location';
   String _destinationLocationName = '';
   List<Map<String, dynamic>> _waypoints = []; // List of stops (C, D, etc.)
-  
+
   // Weather and traffic data
   WeatherData? _currentWeather;
   WeatherData? _destinationWeather;
@@ -495,17 +495,19 @@ class _MapHomePageState extends State<MapHomePage> {
 
     if (mounted) {
       final routes = results[0] as List<RouteInfo>;
-      
+
       if (routes.isNotEmpty) {
         // Sort routes by travel time (optimal first)
-        routes.sort((a, b) => a.travelTimeInSeconds.compareTo(b.travelTimeInSeconds));
-        
+        routes.sort(
+          (a, b) => a.travelTimeInSeconds.compareTo(b.travelTimeInSeconds),
+        );
+
         setState(() {
           _alternativeRoutes = routes; // Update with all routes
           _currentWeather = results[1] as WeatherData?;
           _destinationWeather = results[2] as WeatherData?;
           _departureTimeOptions = results[3] as List<DepartureTimeOption>;
-          
+
           _isLoadingWeather = false;
           _isLoadingDepartureTimes = false;
         });
@@ -2462,7 +2464,7 @@ class _MapHomePageState extends State<MapHomePage> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          
+
                           // Brief overview info rows
                           _buildInfoRowGreen(
                             'Current Traffic',
@@ -2483,9 +2485,9 @@ class _MapHomePageState extends State<MapHomePage> {
                             'Optimal Departure',
                             _getOptimalDepartureSummary(),
                           ),
-                          
+
                           const SizedBox(height: 16),
-                          
+
                           // More Details Button
                           SizedBox(
                             width: double.infinity,
@@ -2497,7 +2499,9 @@ class _MapHomePageState extends State<MapHomePage> {
                                   color: Color(0xFF1c1c1c),
                                   width: 2,
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -3005,7 +3009,7 @@ class _MapHomePageState extends State<MapHomePage> {
 
   Color _getTrafficColor() {
     if (_currentRoute == null) return const Color(0xFF06d6a0);
-    
+
     final level = _currentRoute!.overallTrafficLevel.toLowerCase();
     if (level.contains('severe')) return Colors.red.shade700;
     if (level.contains('heavy')) return Colors.red;
@@ -3016,25 +3020,28 @@ class _MapHomePageState extends State<MapHomePage> {
   String _getWeatherImpactSummary() {
     if (_isLoadingWeather) return 'Loading...';
     if (_destinationWeather == null) return 'No data';
-    
+
     final impact = _weatherService.calculateWeatherImpact(_destinationWeather!);
     if (impact == 0) return 'No impact';
-    
-    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60).round();
+
+    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60)
+        .round();
     return '+$impactMinutes min';
   }
 
   String _getTimeSavedSummary() {
     if (_alternativeRoutes.length < 2) return 'N/A';
-    
+
     // Compare with slowest alternative route
     final slowestRoute = _alternativeRoutes.reduce(
       (a, b) => a.travelTimeInSeconds > b.travelTimeInSeconds ? a : b,
     );
-    
-    final timeSaved = (slowestRoute.travelTimeInSeconds - 
-        _currentRoute!.travelTimeInSeconds) ~/ 60;
-    
+
+    final timeSaved =
+        (slowestRoute.travelTimeInSeconds -
+            _currentRoute!.travelTimeInSeconds) ~/
+        60;
+
     if (timeSaved <= 0) return 'Best route';
     return '$timeSaved min';
   }
@@ -3042,15 +3049,15 @@ class _MapHomePageState extends State<MapHomePage> {
   String _getOptimalDepartureSummary() {
     if (_isLoadingDepartureTimes) return 'Loading...';
     if (_departureTimeOptions.isEmpty) return 'Leave now';
-    
+
     // Find the option with minimum total time
     final optimal = _departureTimeOptions.reduce(
       (a, b) => a.totalTimeInSeconds < b.totalTimeInSeconds ? a : b,
     );
-    
+
     final now = DateTime.now();
     final diff = optimal.departureTime.difference(now).inMinutes;
-    
+
     if (diff <= 5) return 'Now';
     if (diff <= 60) return 'In $diff min';
     return optimal.formattedTime;
@@ -3084,10 +3091,13 @@ class _MapHomePageState extends State<MapHomePage> {
                   ),
                 ),
               ),
-              
+
               // Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -3107,7 +3117,7 @@ class _MapHomePageState extends State<MapHomePage> {
                   ],
                 ),
               ),
-              
+
               // Content
               Expanded(
                 child: ListView(
@@ -3116,22 +3126,22 @@ class _MapHomePageState extends State<MapHomePage> {
                   children: [
                     // Alternative Routes Section
                     _buildAlternativeRoutesSection(),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     // Weather Impact Section
                     _buildWeatherImpactSection(),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     // Optimal Departure Time Section
                     _buildOptimalDepartureSection(),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     // Traffic Breakdown Section
                     _buildTrafficBreakdownSection(),
-                    
+
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -3174,22 +3184,22 @@ class _MapHomePageState extends State<MapHomePage> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           ..._alternativeRoutes.asMap().entries.map((entry) {
             final index = entry.key;
             final route = entry.value;
             final isSelected = route.routeId == _currentRoute!.routeId;
-            
+
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? const Color(0xFF06d6a0).withOpacity(0.1)
                     : const Color(0xFF1c1c1c),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected 
+                  color: isSelected
                       ? const Color(0xFF06d6a0)
                       : const Color(0xFF3a3a3a),
                   width: isSelected ? 2 : 1,
@@ -3211,7 +3221,7 @@ class _MapHomePageState extends State<MapHomePage> {
                                 fontFamily: 'Poppins',
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: isSelected 
+                                color: isSelected
                                     ? const Color(0xFF06d6a0)
                                     : const Color(0xFFf5f6fa),
                               ),
@@ -3289,7 +3299,7 @@ class _MapHomePageState extends State<MapHomePage> {
               ),
             );
           }).toList(),
-          
+
           if (_alternativeRoutes.length > 1) ...[
             const SizedBox(height: 12),
             Text(
@@ -3334,14 +3344,12 @@ class _MapHomePageState extends State<MapHomePage> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           if (_isLoadingWeather)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(
-                  color: Color(0xFF06d6a0),
-                ),
+                child: CircularProgressIndicator(color: Color(0xFF06d6a0)),
               ),
             )
           else if (_destinationWeather != null) ...[
@@ -3378,22 +3386,19 @@ class _MapHomePageState extends State<MapHomePage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
             const Divider(color: Color(0xFF3a3a3a)),
             const SizedBox(height: 16),
-            
+
             // Weather details
             _buildInfoRow(
               'Conditions',
               _weatherService.getWeatherImpactDescription(_destinationWeather!),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow(
-              'Added Time',
-              _getWeatherImpactTime(),
-            ),
-            if (_destinationWeather!.rain1h != null && 
+            _buildInfoRow('Added Time', _getWeatherImpactTime()),
+            if (_destinationWeather!.rain1h != null &&
                 _destinationWeather!.rain1h! > 0) ...[
               const SizedBox(height: 12),
               _buildInfoRow(
@@ -3411,9 +3416,9 @@ class _MapHomePageState extends State<MapHomePage> {
               'Wind Speed',
               '${_destinationWeather!.windSpeed.toStringAsFixed(1)} m/s',
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Forecast at arrival
             Text(
               'Forecast when you arrive (${_getArrivalTime()}):',
@@ -3474,30 +3479,29 @@ class _MapHomePageState extends State<MapHomePage> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           if (_isLoadingDepartureTimes)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(
-                  color: Color(0xFF06d6a0),
-                ),
+                child: CircularProgressIndicator(color: Color(0xFF06d6a0)),
               ),
             )
           else if (_departureTimeOptions.isNotEmpty) ...[
             ..._departureTimeOptions.asMap().entries.map((entry) {
               final index = entry.key;
               final option = entry.value;
-              
+
               // Find the optimal time (minimum total time)
               final optimalOption = _departureTimeOptions.reduce(
                 (a, b) => a.totalTimeInSeconds < b.totalTimeInSeconds ? a : b,
               );
-              final isOptimal = option.departureTime == optimalOption.departureTime;
-              
+              final isOptimal =
+                  option.departureTime == optimalOption.departureTime;
+
               final now = DateTime.now();
               final isNow = option.departureTime.difference(now).inMinutes <= 5;
-              
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
@@ -3605,7 +3609,7 @@ class _MapHomePageState extends State<MapHomePage> {
                 ),
               );
             }).toList(),
-            
+
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -3679,11 +3683,11 @@ class _MapHomePageState extends State<MapHomePage> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           ..._currentRoute!.trafficSections.asMap().entries.map((entry) {
             final index = entry.key;
             final section = entry.value;
-            
+
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
@@ -3716,7 +3720,9 @@ class _MapHomePageState extends State<MapHomePage> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _getTrafficSectionColor(section).withOpacity(0.2),
+                          color: _getTrafficSectionColor(
+                            section,
+                          ).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -3743,9 +3749,9 @@ class _MapHomePageState extends State<MapHomePage> {
                           color: Color(0xFF9e9e9e),
                         ),
                       ),
-                      if (section.trafficDelayInSeconds > 0)
+                      if (section.delayInSeconds > 0)
                         Text(
-                          'Delay: +${(section.trafficDelayInSeconds / 60).round()} min',
+                          'Delay: +${(section.delayInSeconds / 60).round()} min',
                           style: const TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 13,
@@ -3759,7 +3765,7 @@ class _MapHomePageState extends State<MapHomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Speed: ${section.currentSpeed.round()} km/h',
+                        'Effective Speed: ${section.effectiveSpeedInKmh.round()} km/h',
                         style: const TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 12,
@@ -3767,7 +3773,7 @@ class _MapHomePageState extends State<MapHomePage> {
                         ),
                       ),
                       Text(
-                        'Normal: ${section.freeFlowSpeed.round()} km/h',
+                        'Type: ${section.simpleCategory}',
                         style: const TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 12,
@@ -3804,18 +3810,18 @@ class _MapHomePageState extends State<MapHomePage> {
 
   String _getRouteSelectionReason() {
     if (_alternativeRoutes.length < 2) return 'Only route available';
-    
+
     final optimal = _alternativeRoutes[0];
     final reasons = <String>[];
-    
+
     // Check if fastest
     reasons.add('fastest route');
-    
+
     // Check traffic level
     if (optimal.overallTrafficLevel == 'Light') {
       reasons.add('minimal traffic');
     }
-    
+
     // Check distance if significantly shorter
     final shortestDistance = _alternativeRoutes
         .map((r) => r.distanceInMeters)
@@ -3823,17 +3829,18 @@ class _MapHomePageState extends State<MapHomePage> {
     if (optimal.distanceInMeters == shortestDistance) {
       reasons.add('shortest distance');
     }
-    
+
     return reasons.join(', ');
   }
 
   String _getWeatherImpactTime() {
     if (_destinationWeather == null || _currentRoute == null) return 'N/A';
-    
+
     final impact = _weatherService.calculateWeatherImpact(_destinationWeather!);
     if (impact == 0) return 'No delay';
-    
-    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60).round();
+
+    final impactMinutes = (_currentRoute!.travelTimeInSeconds * impact / 60)
+        .round();
     return '+$impactMinutes min';
   }
 
@@ -3860,14 +3867,14 @@ class _MapHomePageState extends State<MapHomePage> {
 
   String _getMaxTimeSavings() {
     if (_departureTimeOptions.isEmpty) return '0 min';
-    
+
     final minTime = _departureTimeOptions
         .map((o) => o.totalTimeInSeconds)
         .reduce(math.min);
     final maxTime = _departureTimeOptions
         .map((o) => o.totalTimeInSeconds)
         .reduce(math.max);
-    
+
     final savings = (maxTime - minTime) ~/ 60;
     return '$savings min';
   }
@@ -3877,13 +3884,13 @@ class _MapHomePageState extends State<MapHomePage> {
       _currentRoute = route;
       _routePoints = route.coordinates;
     });
-    
+
     // Update markers
     _updateMarkers();
-    
+
     // Fit bounds to show entire route
     _fitRouteBounds();
-    
+
     Navigator.pop(context);
     _showSnackBar('Route updated');
   }

@@ -64,9 +64,12 @@ class SearchResult {
   factory SearchResult.fromTomTomJson(Map<String, dynamic> json) {
     final position = json['position'];
     final address = json['address'];
-    
+
     return SearchResult(
-      name: json['poi']?['name'] ?? address['freeformAddress'] ?? 'Unknown Location',
+      name:
+          json['poi']?['name'] ??
+          address['freeformAddress'] ??
+          'Unknown Location',
       address: address['freeformAddress'] ?? '',
       latitude: position['lat'],
       longitude: position['lon'],
@@ -79,26 +82,33 @@ class TrafficSection {
   final int startPointIndex;
   final int endPointIndex;
   final int travelTimeInSeconds;
-  final int trafficDelayInSeconds;
-  final double simpleCategory; // 0-4 representing traffic level
-  final double currentSpeed;
-  final double freeFlowSpeed;
+  final int delayInSeconds; // Correct field name from TomTom API
+  final String simpleCategory; // Type: JAM, ROAD_WORK, ROAD_CLOSURE, OTHER
+  final double effectiveSpeedInKmh; // Correct field name from TomTom API
 
   TrafficSection({
     required this.startPointIndex,
     required this.endPointIndex,
     required this.travelTimeInSeconds,
-    required this.trafficDelayInSeconds,
+    required this.delayInSeconds,
     required this.simpleCategory,
-    required this.currentSpeed,
-    required this.freeFlowSpeed,
+    required this.effectiveSpeedInKmh,
   });
 
   String get trafficLevel {
-    if (simpleCategory <= 1) return 'Light';
-    if (simpleCategory <= 2) return 'Moderate';
-    if (simpleCategory <= 3) return 'Heavy';
-    return 'Severe';
+    // Map incident types to traffic levels
+    switch (simpleCategory.toUpperCase()) {
+      case 'JAM':
+        return 'Heavy';
+      case 'ROAD_WORK':
+        return 'Moderate';
+      case 'ROAD_CLOSURE':
+        return 'Severe';
+      case 'OTHER':
+        return 'Light';
+      default:
+        return 'Unknown';
+    }
   }
 
   factory TrafficSection.fromJson(Map<String, dynamic> json) {
@@ -106,10 +116,9 @@ class TrafficSection {
       startPointIndex: json['startPointIndex'] ?? 0,
       endPointIndex: json['endPointIndex'] ?? 0,
       travelTimeInSeconds: json['travelTimeInSeconds'] ?? 0,
-      trafficDelayInSeconds: json['trafficDelayInSeconds'] ?? 0,
-      simpleCategory: (json['simpleCategory'] as num?)?.toDouble() ?? 0.0,
-      currentSpeed: (json['currentSpeed'] as num?)?.toDouble() ?? 0.0,
-      freeFlowSpeed: (json['freeFlowSpeed'] as num?)?.toDouble() ?? 0.0,
+      delayInSeconds: json['delayInSeconds'] ?? 0,
+      simpleCategory: json['simpleCategory']?.toString() ?? 'OTHER',
+      effectiveSpeedInKmh: (json['effectiveSpeedInKmh'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -170,16 +179,40 @@ class RouteInfo {
   }
 
   String get overallTrafficLevel {
-    if (trafficSections.isEmpty) return 'Unknown';
+    // If we have traffic sections, use them for detailed analysis
+    if (trafficSections.isNotEmpty) {
+      // Determine worst traffic level from all sections
+      bool hasRoadClosure = false;
+      bool hasJam = false;
+      bool hasRoadWork = false;
+
+      for (var section in trafficSections) {
+        switch (section.simpleCategory.toUpperCase()) {
+          case 'ROAD_CLOSURE':
+            hasRoadClosure = true;
+            break;
+          case 'JAM':
+            hasJam = true;
+            break;
+          case 'ROAD_WORK':
+            hasRoadWork = true;
+            break;
+        }
+      }
+
+      if (hasRoadClosure) return 'Severe';
+      if (hasJam) return 'Heavy';
+      if (hasRoadWork) return 'Moderate';
+      return 'Light';
+    }
+
+    // Fallback: Use traffic delay from summary if no sections available
+    final delayMinutes = trafficDelaySeconds / 60;
     
-    // Calculate average traffic level
-    final avgCategory = trafficSections
-        .map((s) => s.simpleCategory)
-        .reduce((a, b) => a + b) / trafficSections.length;
-    
-    if (avgCategory <= 1) return 'Light';
-    if (avgCategory <= 2) return 'Moderate';
-    if (avgCategory <= 3) return 'Heavy';
+    if (delayMinutes == 0) return 'Light';
+    if (delayMinutes < 5) return 'Light';
+    if (delayMinutes < 10) return 'Moderate';
+    if (delayMinutes < 20) return 'Heavy';
     return 'Severe';
   }
 }
@@ -219,5 +252,3 @@ class DepartureTimeOption {
 
   int get totalTimeInSeconds => travelTimeInSeconds + trafficDelayInSeconds;
 }
-
-

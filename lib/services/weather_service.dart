@@ -45,7 +45,7 @@ class WeatherService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final list = data['list'] as List;
-        
+
         return list
             .take(hours ~/ 3)
             .map((item) => WeatherForecast.fromJson(item))
@@ -105,7 +105,7 @@ class WeatherService {
   /// Get weather description for display
   String getWeatherImpactDescription(WeatherData weather) {
     final impact = calculateWeatherImpact(weather);
-    
+
     if (impact >= 0.25) {
       return 'Severe weather impact';
     } else if (impact >= 0.15) {
@@ -149,7 +149,7 @@ class WeatherData {
     final weather = json['weather'][0];
     final main = json['main'];
     final wind = json['wind'];
-    
+
     return WeatherData(
       description: weather['description'] ?? '',
       main: weather['main'] ?? '',
@@ -160,9 +160,7 @@ class WeatherData {
       visibility: json['visibility'] as int? ?? 10000,
       rain1h: json['rain']?['1h']?.toDouble(),
       snow1h: json['snow']?['1h']?.toDouble(),
-      dateTime: DateTime.fromMillisecondsSinceEpoch(
-        (json['dt'] as int) * 1000,
-      ),
+      dateTime: DateTime.fromMillisecondsSinceEpoch((json['dt'] as int) * 1000),
     );
   }
 }
@@ -194,9 +192,7 @@ class WeatherForecast {
     final wind = json['wind'];
 
     return WeatherForecast(
-      dateTime: DateTime.fromMillisecondsSinceEpoch(
-        (json['dt'] as int) * 1000,
-      ),
+      dateTime: DateTime.fromMillisecondsSinceEpoch((json['dt'] as int) * 1000),
       temp: (main['temp'] as num).toDouble(),
       description: weather['description'] ?? '',
       main: weather['main'] ?? '',
