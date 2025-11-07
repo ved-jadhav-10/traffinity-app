@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_compass/flutter_compass.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:async';
+import 'dart:math' as math;
 import '../services/supabase_service.dart';
 import '../services/tomtom_service.dart';
 import '../services/location_service.dart';
@@ -10,6 +13,7 @@ import '../services/cached_tile_provider.dart';
 import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
 import '../screens/auth/sign_in_screen.dart';
+import '../screens/profile/profile_screen.dart';
 
 class MapHomePage extends StatefulWidget {
   const MapHomePage({super.key});
@@ -41,18 +45,28 @@ class _MapHomePageState extends State<MapHomePage> {
   String _startLocationName = 'My Location';
   String _destinationLocationName = '';
   List<Map<String, dynamic>> _waypoints = []; // List of stops (C, D, etc.)
+  
+  // Compass and speech-to-text
+  double _compassHeading = 0.0;
+  StreamSubscription<CompassEvent>? _compassSubscription;
+  double _mapRotation = 0.0;
+  late stt.SpeechToText _speechToText;
+  bool _isListening = false;
 
   @override
   void initState() {
     super.initState();
     _initializeMap();
     _loadUserName();
+    _initializeCompass();
+    _initializeSpeechToText();
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _compassSubscription?.cancel();
     super.dispose();
   }
 
@@ -100,6 +114,72 @@ class _MapHomePageState extends State<MapHomePage> {
       setState(() {
         _userName = firstName;
       });
+    }
+  }
+
+  void _initializeCompass() {
+    _compassSubscription = FlutterCompass.events?.listen((CompassEvent event) {
+      if (mounted) {
+        setState(() {
+          _compassHeading = event.heading ?? 0.0;
+        });
+      }
+    });
+  }
+
+  Future<void> _initializeSpeechToText() async {
+    _speechToText = stt.SpeechToText();
+    await _speechToText.initialize(
+      onError: (error) {
+        if (mounted) {
+          _showSnackBar('Speech recognition error. Please try again.');
+        }
+      },
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (mounted) {
+            setState(() => _isListening = false);
+          }
+        }
+      },
+    );
+  }
+
+  void _toggleListening() async {
+    if (_isListening) {
+      await _speechToText.stop();
+      setState(() => _isListening = false);
+    } else {
+      bool available = await _speechToText.initialize();
+      if (available) {
+        setState(() => _isListening = true);
+        _speechToText.listen(
+          onResult: (result) {
+            if (result.finalResult) {
+              _searchController.text = result.recognizedWords;
+              _onSearchChanged(result.recognizedWords);
+              setState(() => _isListening = false);
+            }
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          partialResults: true,
+          localeId: 'en_US',
+        );
+      } else {
+        _showSnackBar('Speech recognition not available. Please try again.');
+      }
+    }
+  }
+
+  void _resetMapRotation() {
+    // Reset map rotation to north and recenter
+    if (_currentLocation != null) {
+      setState(() {
+        _mapRotation = 0.0;
+      });
+      _mapController.rotate(0.0);
+      _mapController.move(_currentLocation!, 14.0);
     }
   }
 
@@ -973,6 +1053,22 @@ class _MapHomePageState extends State<MapHomePage> {
 
               // Menu items
               ListTile(
+                leading: const Icon(Icons.person, color: Color(0xFF06d6a0)),
+                title: const Text(
+                  'Profile',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Color(0xFFf5f6fa),
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToProfile();
+                },
+              ),
+
+              ListTile(
                 leading: const Icon(Icons.favorite, color: Color(0xFF06d6a0)),
                 title: const Text(
                   'Favorites',
@@ -1032,6 +1128,15 @@ class _MapHomePageState extends State<MapHomePage> {
         ),
       ),
     );
+  }
+
+  void _navigateToProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ProfileScreen()),
+    );
+    // Reload user name after returning from profile
+    _loadUserName();
   }
 
   Future<void> _logout() async {
@@ -1117,6 +1222,7 @@ class _MapHomePageState extends State<MapHomePage> {
                     initialZoom: _currentLocation != null ? 14.0 : 5.0,
                     minZoom: 3.0,
                     maxZoom: 18.0,
+                    initialRotation: _mapRotation,
                   ),
                   children: [
                     TileLayer(
@@ -1416,6 +1522,22 @@ class _MapHomePageState extends State<MapHomePage> {
                             ),
                           ),
 
+                          // Mic button
+                          Container(
+                            margin: const EdgeInsets.only(right: 4),
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.mic,
+                                color: _isListening 
+                                    ? const Color(0xFF06d6a0) 
+                                    : const Color(0xFFf5f6fa),
+                                size: 24,
+                              ),
+                              onPressed: _toggleListening,
+                              tooltip: 'Voice Search',
+                            ),
+                          ),
+
                           // Hamburger menu
                           Container(
                             margin: const EdgeInsets.only(right: 4),
@@ -1483,6 +1605,37 @@ class _MapHomePageState extends State<MapHomePage> {
                     ),
                   ),
               ],
+            ),
+          ),
+
+          // Compass button (above recenter button)
+          Positioned(
+            right: 16,
+            bottom: _showRouteInfo ? 390 : 190,
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                iconSize: 28,
+                onPressed: _resetMapRotation,
+                icon: Transform.rotate(
+                  angle: -_compassHeading * (math.pi / 180),
+                  child: const Icon(
+                    Icons.navigation,
+                    color: Color(0xFF06d6a0),
+                  ),
+                ),
+                tooltip: 'Compass',
+              ),
             ),
           ),
 

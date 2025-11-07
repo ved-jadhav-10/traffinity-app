@@ -367,4 +367,133 @@ class SupabaseService {
       return false;
     }
   }
+
+  // =============== USER PROFILE ===============
+
+  // Get user profile
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      // Get profile from user_profiles table
+      final response = await client
+          .from('user_profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      // Get name from user metadata
+      final metadata = user.userMetadata;
+      final firstName = metadata?['first_name'] ?? '';
+      final lastName = metadata?['last_name'] ?? '';
+      final name = '$firstName $lastName'.trim();
+
+      if (response != null) {
+        return {
+          'name': name.isEmpty ? 'User' : name,
+          'email': user.email ?? '',
+          'phone_number': response['phone_number'] ?? '',
+          'vehicles': response['vehicles'] ?? [],
+        };
+      } else {
+        // Create profile if doesn't exist
+        await client.from('user_profiles').insert({'id': user.id});
+        
+        return {
+          'name': name.isEmpty ? 'User' : name,
+          'email': user.email ?? '',
+          'phone_number': '',
+          'vehicles': [],
+        };
+      }
+    } catch (e) {
+      print('Error getting user profile: $e');
+      rethrow;
+    }
+  }
+
+  // Update user profile
+  Future<bool> updateUserProfile({
+    String? name,
+    String? phoneNumber,
+    List<Map<String, dynamic>>? vehicles,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      // Update user_profiles table
+      final Map<String, dynamic> updates = {};
+      
+      if (phoneNumber != null) {
+        updates['phone_number'] = phoneNumber;
+      }
+      
+      if (vehicles != null) {
+        updates['vehicles'] = vehicles;
+      }
+      
+      updates['updated_at'] = DateTime.now().toIso8601String();
+
+      await client
+          .from('user_profiles')
+          .update(updates)
+          .eq('id', user.id);
+
+      // Update name in user metadata if provided
+      if (name != null && name.isNotEmpty) {
+        final nameParts = name.trim().split(' ');
+        final firstName = nameParts.first;
+        final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+        
+        await client.auth.updateUser(
+          UserAttributes(
+            data: {
+              'first_name': firstName,
+              'last_name': lastName,
+            },
+          ),
+        );
+      }
+
+      return true;
+    } catch (e) {
+      print('Error updating user profile: $e');
+      rethrow;
+    }
+  }
+
+  // Update password
+  Future<bool> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = currentUser;
+      if (user == null || user.email == null) {
+        throw 'User not authenticated';
+      }
+
+      // Verify current password by attempting to sign in
+      try {
+        await client.auth.signInWithPassword(
+          email: user.email!,
+          password: currentPassword,
+        );
+      } catch (e) {
+        throw 'Current password is incorrect';
+      }
+
+      // Update to new password
+      await client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+
+      return true;
+    } catch (e) {
+      print('Error updating password: $e');
+      rethrow;
+    }
+  }
 }

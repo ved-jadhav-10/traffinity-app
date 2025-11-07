@@ -65,6 +65,12 @@ dependencies:
   flutter_cache_manager: ^3.4.1
   cached_network_image: ^3.4.1
 
+  # Compass sensor for map orientation
+  flutter_compass: ^0.8.0
+
+  # Speech to text for voice search
+  speech_to_text: ^7.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
