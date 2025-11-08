@@ -140,7 +140,7 @@ class _TransportPageState extends State<TransportPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'We\'re building amazing transport features for you!',
+                        'We\'re building amazing Transport features for you!',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Poppins',

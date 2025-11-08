@@ -30,6 +30,9 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
   String _ecoLevel = 'Eco Beginner';
   Color _ecoLevelColor = const Color(0xFF9e9e9e);
 
+  // Control visibility
+  bool _showStats = false;
+
   // User profile vehicle
   String? _userVehicleType;
   String? _userVehicleFuel;
@@ -183,10 +186,11 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
       _moneySavedPerMonth = moneySavedPerMonth;
       _ecoLevel = ecoLevel;
       _ecoLevelColor = ecoLevelColor;
+      _showStats = true; // Show stats after calculation
     });
 
     // Trigger animation
-    _animationController.reset();
+    _animationController.forward(from: 0);
     _animationController.forward();
   }
 
@@ -452,7 +456,7 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
                   const SizedBox(height: 32),
 
                   // Results Section
-                  if (_co2SavedPerMonth > 0) ...[
+                  if (_showStats && _co2SavedPerMonth > 0) ...[
                     const Text(
                       'Your Environmental Impact',
                       style: TextStyle(
@@ -613,7 +617,6 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
             ),
             contentPadding: const EdgeInsets.all(16),
           ),
-          onChanged: (_) => _calculateImpact(),
         ),
       ],
     );
@@ -661,7 +664,6 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
             }).toList(),
             onChanged: (newValue) {
               onChanged(newValue);
-              _calculateImpact();
             },
             icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF06d6a0)),
             dropdownColor: const Color(0xFF2a2a2a),

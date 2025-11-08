@@ -805,7 +805,7 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
                         Icon(
                           type['icon'],
                           size: 32,
-                          color: isSelected ? Colors.white : const Color(0xFF9e9e9e),
+                          color: isSelected ? Colors.black : const Color(0xFF9e9e9e),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -815,7 +815,7 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
                             fontFamily: 'Poppins',
                             fontSize: 11,
                             color: isSelected
-                                ? Colors.white
+                                ? Colors.black
                                 : const Color(0xFFf5f6fa),
                           ),
                         ),
@@ -971,7 +971,7 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
                           fontFamily: 'Poppins',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.black,
                         ),
                       ),
               ),

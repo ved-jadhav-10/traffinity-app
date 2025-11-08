@@ -249,7 +249,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Get ready to explore and save your world!',
+                        'We\'re building amazing Territory features for you!',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Poppins',
