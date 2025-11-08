@@ -33,7 +33,6 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
   StreamSubscription<Position>? _positionStreamSubscription;
   StreamSubscription<CompassEvent>? _compassSubscription;
   double _compassHeading = 0.0;
-  double _mapRotation = 0.0;
   String? _selectedEventId; // Track selected event for highlighting
 
   // City coordinates
@@ -73,9 +72,6 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
   void _resetMapRotation() {
     // Reset map rotation to north and recenter to user location
     if (_userLocation != null) {
-      setState(() {
-        _mapRotation = 0.0;
-      });
       _mapController.rotate(0.0);
       _mapController.move(_userLocation!, 14.0);
     }
@@ -183,16 +179,21 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
     return uniqueEvents;
   }
 
-  Future<void> _loadEvents() async {
+  Future<void> _loadEvents({bool forceRefresh = false}) async {
     try {
-      final events = await _eventService.getCityEvents(widget.city);
+      final events = await _eventService.getCityEvents(
+        widget.city,
+        forceRefresh: forceRefresh,
+      );
 
       // Remove duplicates first
       final uniqueEvents = _removeDuplicates(events);
 
-      // Geocode events that don't have coordinates
+      // Only geocode events that don't have coordinates (usually already cached)
+      bool needsGeocoding = false;
       for (var event in uniqueEvents) {
         if (event.latitude == null || event.longitude == null) {
+          needsGeocoding = true;
           final coords = await _eventService.geocodeLocation(
             event.location,
             widget.city,
@@ -208,8 +209,8 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             event.longitude = cityCoords?['lng'];
           }
 
-          // Small delay to avoid rate limiting on geocoding
-          await Future.delayed(const Duration(milliseconds: 1000));
+          // Small delay to avoid rate limiting on geocoding (only if actually calling API)
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
 
@@ -220,6 +221,10 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
       }
 
       _addEventMarkers();
+
+      if (!needsGeocoding && !forceRefresh) {
+        print('⚡ Events loaded instantly from cache with coordinates!');
+      }
     } catch (e) {
       print('Error loading events: $e');
     }
@@ -227,7 +232,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
 
   Future<void> _refreshEvents() async {
     setState(() => _isRefreshing = true);
-    await _loadEvents();
+    await _loadEvents(forceRefresh: true); // Force refresh from network
     setState(() => _isRefreshing = false);
   }
 
@@ -908,7 +913,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF06d6a0),
-                      foregroundColor: Colors.white,
+                      foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1094,17 +1099,67 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             ),
           ),
 
+          // Compass button for recentering (moved higher)
+          Positioned(
+            bottom: 200, // Moved higher to avoid overlap with cards
+            left: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                iconSize: 40,
+                onPressed: _resetMapRotation,
+                icon: Transform.rotate(
+                  angle: -_compassHeading * (math.pi / 180),
+                  child: Image.asset(
+                    'assets/icons/compass.png',
+                    width: 40,
+                    height: 40,
+                    color: const Color(0xFF06d6a0),
+                  ),
+                ),
+                tooltip: 'Compass - Recenter & Reset North',
+              ),
+            ),
+          ),
+
+          // Add event button (moved higher to avoid overlap with slider)
+          Positioned(
+            bottom: 200, // Moved higher to avoid overlap with cards
+            right: 16,
+            child: FloatingActionButton.extended(
+              onPressed: _showAddEventDialog,
+              backgroundColor: const Color(0xFF06d6a0),
+              icon: const Icon(Icons.add, color: Color.fromARGB(255, 0, 0, 0)),
+              label: const Text(
+                'Add Event',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+
           // Horizontal event slider at bottom (static, always visible)
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              height: 180, // Fixed height to prevent layout issues
+              height: 175, // Increased height for taller event cards
               padding: EdgeInsets.only(
-                bottom:
-                    MediaQuery.of(context).padding.bottom +
-                    8, // Safe area padding + extra
+                bottom: MediaQuery.of(context).padding.bottom + 8,
               ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -1128,10 +1183,10 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                           color: const Color(0xFF2a2a2a),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -1139,10 +1194,10 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                                 color: Color(0xFF06d6a0),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             Text(
                               'Loading events...',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 14,
                                 color: Color(0xFF9e9e9e),
@@ -1187,58 +1242,6 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                     ),
             ),
           ),
-
-          // Compass button for recentering (same as home page)
-          Positioned(
-            bottom: 185, // Adjusted for slider height + safe area
-            left: 24,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1c1c1c),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                iconSize: 48,
-                onPressed: _resetMapRotation,
-                icon: Transform.rotate(
-                  angle: -_compassHeading * (math.pi / 180),
-                  child: Image.asset(
-                    'assets/icons/compass.png',
-                    width: 48,
-                    height: 48,
-                    color: const Color(0xFF06d6a0),
-                  ),
-                ),
-                tooltip: 'Compass - Recenter & Reset North',
-              ),
-            ),
-          ),
-
-          // Add event button (moved up to avoid overlap with slider)
-          Positioned(
-            bottom: 185, // Adjusted for slider height + safe area
-            right: 24,
-            child: FloatingActionButton.extended(
-              onPressed: _showAddEventDialog,
-              backgroundColor: const Color(0xFF06d6a0),
-              icon: const Icon(Icons.add, color: Color.fromARGB(255, 0, 0, 0)),
-              label: const Text(
-                'Add Event',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1267,7 +1270,8 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
         _showEventDetails(event);
       },
       child: Container(
-        width: 260, // Increased for better readability
+        width: 280, // Optimized width
+        height: 145, // Increased height for better content display
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
           color: isSelected
@@ -1278,7 +1282,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             color: isSelected
                 ? _getEventColor(event.eventType)
                 : _getEventColor(event.eventType).withOpacity(0.3),
-            width: isSelected ? 3 : 2,
+            width: isSelected ? 2.5 : 1.5,
           ),
           boxShadow: [
             BoxShadow(
@@ -1294,56 +1298,45 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              // Event type badge and title
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getEventColor(event.eventType),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      event.eventType.toUpperCase(),
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+              // Event type badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _getEventColor(event.eventType),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  event.eventType.toUpperCase(),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                  const Spacer(),
-                  Icon(
-                    Icons.location_on,
-                    color: _getEventColor(event.eventType),
-                    size: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Event title - compact
+              Expanded(
+                child: Text(
+                  event.title,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFf5f6fa),
+                    height: 1.2,
                   ),
-                ],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(height: 6),
-              // Event title
-              Text(
-                event.title,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFf5f6fa),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              // Location
+              // Location and Time in one row
               Row(
                 children: [
-                  const Icon(Icons.place, color: Color(0xFF9e9e9e), size: 11),
+                  const Icon(Icons.place, color: Color(0xFF9e9e9e), size: 12),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -1362,27 +1355,30 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
               const SizedBox(height: 4),
               // Time
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(
-                    Icons.access_time,
-                    color: Color(0xFF9e9e9e),
-                    size: 11,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      DateFormat('MMM dd, hh:mm a').format(event.startTime),
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time,
                         color: Color(0xFF9e9e9e),
+                        size: 12,
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('MMM dd, hh:mm a').format(event.startTime),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 10,
+                          color: Color(0xFF9e9e9e),
+                        ),
+                      ),
+                    ],
                   ),
                   // Tap indicator
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
+                      horizontal: 6,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(

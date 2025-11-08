@@ -1,13 +1,155 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_service.dart';
 
 class LiveEventService {
   final SupabaseService _supabaseService = SupabaseService();
+  static const String _cacheKeyPrefix = 'events_cache_';
+  static const String _cacheTimePrefix = 'events_cache_time_';
+  static const Duration _cacheDuration = Duration(hours: 1); // Cache for 1 hour
+
+  // Get all events with caching support
+  Future<List<LiveEvent>> getCityEvents(
+    String city, {
+    bool forceRefresh = false,
+  }) async {
+    try {
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedEvents = await _getCachedEvents(city);
+        if (cachedEvents != null && cachedEvents.isNotEmpty) {
+          print('✅ Loaded ${cachedEvents.length} events from cache');
+          return cachedEvents;
+        }
+      }
+
+      print('🔄 Fetching fresh events from network...');
+      final List<LiveEvent> allEvents = [];
+
+      // 1. Get Reddit events
+      final redditEvents = await _getRedditEvents(city);
+      allEvents.addAll(redditEvents);
+
+      // 2. Get RSS feed events
+      final rssEvents = await _getRSSEvents(city);
+      allEvents.addAll(rssEvents);
+
+      // 3. Get user-submitted events from Supabase
+      final userEvents = await _getUserSubmittedEvents(city);
+      allEvents.addAll(userEvents);
+
+      // Remove duplicates and sort by date
+      final uniqueEvents = _removeDuplicates(allEvents);
+      uniqueEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      // Cache the events
+      await _cacheEvents(city, uniqueEvents);
+      print('💾 Cached ${uniqueEvents.length} events');
+
+      return uniqueEvents;
+    } catch (e) {
+      print('Error fetching events: $e');
+
+      // Try to return cached events even if there's an error
+      final cachedEvents = await _getCachedEvents(city);
+      if (cachedEvents != null && cachedEvents.isNotEmpty) {
+        print('⚠️ Returning cached events due to network error');
+        return cachedEvents;
+      }
+
+      return [];
+    }
+  }
+
+  // Cache events to SharedPreferences
+  Future<void> _cacheEvents(String city, List<LiveEvent> events) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final eventsJson = events.map((e) => _eventToJson(e)).toList();
+      await prefs.setString(_cacheKeyPrefix + city, json.encode(eventsJson));
+      await prefs.setInt(
+        _cacheTimePrefix + city,
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (e) {
+      print('Error caching events: $e');
+    }
+  }
+
+  // Get cached events from SharedPreferences
+  Future<List<LiveEvent>?> _getCachedEvents(String city) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString(_cacheKeyPrefix + city);
+      final cacheTime = prefs.getInt(_cacheTimePrefix + city);
+
+      if (cachedData == null || cacheTime == null) {
+        return null;
+      }
+
+      // Check if cache is still valid
+      final cacheAge = DateTime.now().millisecondsSinceEpoch - cacheTime;
+      if (cacheAge > _cacheDuration.inMilliseconds) {
+        print(
+          '⏰ Cache expired (${Duration(milliseconds: cacheAge).inMinutes} minutes old)',
+        );
+        return null;
+      }
+
+      final List<dynamic> eventsJson = json.decode(cachedData);
+      return eventsJson.map((e) => _eventFromJson(e)).toList();
+    } catch (e) {
+      print('Error reading cache: $e');
+      return null;
+    }
+  }
+
+  // Convert LiveEvent to JSON
+  Map<String, dynamic> _eventToJson(LiveEvent event) {
+    return {
+      'id': event.id,
+      'title': event.title,
+      'description': event.description,
+      'location': event.location,
+      'city': event.city,
+      'startTime': event.startTime.toIso8601String(),
+      'endTime': event.endTime?.toIso8601String(),
+      'source': event.source,
+      'sourceUrl': event.sourceUrl,
+      'eventType': event.eventType,
+      'estimatedAttendance': event.estimatedAttendance,
+      'trafficImpact': event.trafficImpact.toString().split('.').last,
+      'latitude': event.latitude,
+      'longitude': event.longitude,
+      'isUserSubmitted': event.isUserSubmitted,
+    };
+  }
+
+  // Convert JSON to LiveEvent
+  LiveEvent _eventFromJson(Map<String, dynamic> json) {
+    return LiveEvent(
+      id: json['id'],
+      title: json['title'],
+      description: json['description'],
+      location: json['location'],
+      city: json['city'],
+      startTime: DateTime.parse(json['startTime']),
+      endTime: json['endTime'] != null ? DateTime.parse(json['endTime']) : null,
+      source: json['source'],
+      sourceUrl: json['sourceUrl'],
+      eventType: json['eventType'],
+      estimatedAttendance: json['estimatedAttendance'],
+      trafficImpact: _stringToTrafficImpact(json['trafficImpact']),
+      latitude: json['latitude'],
+      longitude: json['longitude'],
+      isUserSubmitted: json['isUserSubmitted'],
+    );
+  }
 
   // Get all events (Reddit + RSS + User-submitted)
-  Future<List<LiveEvent>> getCityEvents(String city) async {
+  Future<List<LiveEvent>> getCityEventsLegacy(String city) async {
     try {
       final List<LiveEvent> allEvents = [];
 
@@ -288,12 +430,22 @@ class LiveEventService {
     }
   }
 
-  // Geocode location to coordinates
+  // Geocode location to coordinates with caching
   Future<Map<String, double>?> geocodeLocation(
     String location,
     String city,
   ) async {
     try {
+      // Check cache first
+      final cacheKey = 'geocode_${location}_$city';
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString(cacheKey);
+
+      if (cachedData != null) {
+        final Map<String, dynamic> data = json.decode(cachedData);
+        return {'latitude': data['latitude'], 'longitude': data['longitude']};
+      }
+
       // Using OpenStreetMap Nominatim (free, no API key needed)
       final query = '$location, $city, India';
       final url = Uri.parse(
@@ -309,10 +461,15 @@ class LiveEventService {
         final data = json.decode(response.body) as List;
         if (data.isNotEmpty) {
           final result = data[0];
-          return {
+          final coords = {
             'latitude': double.parse(result['lat']),
             'longitude': double.parse(result['lon']),
           };
+
+          // Cache the geocoded result
+          await prefs.setString(cacheKey, json.encode(coords));
+
+          return coords;
         }
       }
     } catch (e) {
