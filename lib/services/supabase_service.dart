@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:io';
 
 class SupabaseService {
   static final SupabaseService _instance = SupabaseService._internal();
@@ -771,5 +772,113 @@ class SupabaseService {
       return false;
     }
   }
-}
 
+  // ==================== CIVIC ISSUES ====================
+
+  // Report a new civic issue (anonymous)
+  Future<Map<String, dynamic>?> reportCivicIssue({
+    required String issueType,
+    required double latitude,
+    required double longitude,
+    String? description,
+    String? photoUrl,
+  }) async {
+    try {
+      final issue = {
+        'issue_type': issueType,
+        'latitude': latitude,
+        'longitude': longitude,
+        'description': description,
+        'photo_url': photoUrl,
+      };
+
+      final response = await client
+          .from('civic_issues')
+          .insert(issue)
+          .select()
+          .single();
+
+      return response;
+    } catch (e) {
+      print('Error reporting civic issue: $e');
+      rethrow;
+    }
+  }
+
+  // Get civic issues within a radius (in meters) from a location
+  Future<List<Map<String, dynamic>>> getCivicIssuesWithinRadius({
+    required double latitude,
+    required double longitude,
+    int radiusMeters = 20000, // 20km default
+  }) async {
+    try {
+      // Call the PostgreSQL function we created
+      final response = await client
+          .rpc('get_civic_issues_within_radius', params: {
+        'lat': latitude,
+        'lng': longitude,
+        'radius_meters': radiusMeters,
+      });
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error fetching civic issues: $e');
+      // Fallback: Get all issues and filter client-side
+      try {
+        final response = await client
+            .from('civic_issues')
+            .select()
+            .order('created_at', ascending: false);
+
+        return List<Map<String, dynamic>>.from(response);
+      } catch (e) {
+        print('Error fetching civic issues (fallback): $e');
+        return [];
+      }
+    }
+  }
+
+  // Upload civic issue photo to Supabase Storage (anonymous)
+  Future<String?> uploadCivicIssuePhoto(String filePath) async {
+    try {
+      print('📸 Starting photo upload...');
+      print('File path: $filePath');
+      
+      // Check if file exists
+      final file = File(filePath);
+      if (!await file.exists()) {
+        print('❌ Error: File does not exist at path: $filePath');
+        throw Exception('Photo file not found');
+      }
+      
+      print('✅ File exists, size: ${await file.length()} bytes');
+
+      // Generate unique filename with timestamp
+      final fileName = 'civic_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = fileName; // Upload to root of bucket, not subfolder
+      
+      print('Uploading to: $path');
+
+      // Upload to Supabase Storage with upsert option
+      await client.storage.from('civic-photos').upload(
+        path,
+        file,
+        fileOptions: const FileOptions(
+          upsert: true,
+        ),
+      );
+      
+      print('✅ Upload successful!');
+
+      // Get public URL
+      final publicUrl = client.storage.from('civic-photos').getPublicUrl(path);
+      
+      print('📷 Public URL: $publicUrl');
+
+      return publicUrl;
+    } catch (e) {
+      print('❌ Error uploading civic issue photo: $e');
+      rethrow; // Rethrow to show user the actual error
+    }
+  }
+}

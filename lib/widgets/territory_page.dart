@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import '../screens/collections/collections_screen.dart';
 import '../screens/city_incident_map_screen.dart';
+import '../screens/civic_issue_map_screen.dart';
 import '../screens/live_events_map_screen.dart';
 import '../services/location_service.dart';
 import '../services/live_event_service.dart';
@@ -167,7 +166,25 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 2. Live Events (NEW) - Always show, load in background
+                // 2. Civic Issue Map
+                _buildFeatureCard(
+                  icon: Icons.engineering,
+                  title: 'Civic Issue Map',
+                  description:
+                      'Report civic issues like potholes, garbage collection and more.',
+                  color: const Color(0xFF4a90e2),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CivicIssueMapScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // 3. Live Events (NEW) - Always show, load in background
                 _buildFeatureCard(
                   icon: Icons.event,
                   title: 'Live Events',
@@ -191,23 +208,6 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 3. Collections
-                _buildFeatureCard(
-                  icon: Icons.collections,
-                  title: 'Collections',
-                  description: 'Organize places into custom collections.',
-                  color: const Color(0xFFf54728),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CollectionsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-
                 // 4. Explore Nearby
                 _buildFeatureCard(
                   icon: Icons.explore,
@@ -215,17 +215,6 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   description: 'Discover interesting places around you.',
                   color: const Color(0xFFffa726),
                   onTap: widget.onExploreNearby,
-                ),
-                const SizedBox(height: 16),
-
-                // 5. Our Services
-                _buildFeatureCard(
-                  icon: Icons.business_center,
-                  title: 'Our Services',
-                  description:
-                      'Check our website for more services and features!',
-                  color: const Color(0xFF4a90e2),
-                  onTap: _openWebsite,
                 ),
                 const SizedBox(height: 32),
 
@@ -278,81 +267,6 @@ class _TerritoryPageState extends State<TerritoryPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _openWebsite() async {
-    final url = Uri.parse('https://github.com/harshilbiyani');
-
-    // Show confirmation dialog
-    final shouldOpen = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2a2a2a),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'External Link',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              color: Color(0xFFf5f6fa),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'You will be redirected outside our app to view our services.',
-            style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9e9e9e)),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Color(0xFF9e9e9e),
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF06d6a0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Color(0xFF1c1c1c),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    // If user confirmed, open the URL
-    if (shouldOpen == true) {
-      try {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } catch (e) {
-        // Show error if URL can't be opened
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open website: $e'),
-              backgroundColor: const Color(0xFFf54748),
-            ),
-          );
-        }
-      }
-    }
   }
 
   Widget _buildFeatureCard({

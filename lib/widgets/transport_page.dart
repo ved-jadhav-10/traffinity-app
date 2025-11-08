@@ -77,14 +77,6 @@ class _TransportPageState extends State<TransportPage> {
                 const SizedBox(height: 16),
 
                 _buildFeatureCard(
-                  icon: Icons.schedule,
-                  title: 'Delay Alerts',
-                  description: 'Check for latest delays in your area.',
-                  color: const Color(0xFF4a90e2),
-                ),
-                const SizedBox(height: 16),
-
-                _buildFeatureCard(
                   icon: Icons.eco,
                   title: 'Impact Tracker',
                   description:

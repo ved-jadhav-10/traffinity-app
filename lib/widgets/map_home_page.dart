@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../services/supabase_service.dart';
@@ -15,6 +16,7 @@ import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/collections/collections_screen.dart';
 import 'transport_page.dart';
 import 'territory_page.dart';
 import 'live_navigation_screen.dart';
@@ -1682,7 +1684,39 @@ class _MapHomePageState extends State<MapHomePage> {
                 },
               ),
 
+              ListTile(
+                leading: const Icon(Icons.collections, color: Color(0xFF06d6a0)),
+                title: const Text(
+                  'Collections',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Color(0xFFf5f6fa),
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToCollections();
+                },
+              ),
+
               const Divider(color: Color(0xFF3a3a3a), height: 1),
+
+              ListTile(
+                leading: const Icon(Icons.business_center, color: Color(0xFF06d6a0)),
+                title: const Text(
+                  'Our Services',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Color(0xFFf5f6fa),
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openWebsite();
+                },
+              ),
 
               ListTile(
                 leading: const Icon(Icons.logout, color: Color(0xFF06d6a0)),
@@ -1719,6 +1753,90 @@ class _MapHomePageState extends State<MapHomePage> {
     );
     // Reload user name after returning from profile
     _loadUserName();
+  }
+
+  void _navigateToCollections() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CollectionsScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openWebsite() async {
+    final url = Uri.parse('https://github.com/harshilbiyani');
+
+    // Show confirmation dialog
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2a2a2a),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'External Link',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              color: Color(0xFFf5f6fa),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'You will be redirected outside the app to view our services.',
+            style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9e9e9e)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF9e9e9e),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06d6a0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF1c1c1c),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user confirmed, open the URL
+    if (shouldOpen == true) {
+      try {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        // Show error if URL can't be opened
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not open website: $e'),
+              backgroundColor: const Color(0xFFf54748),
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _logout() async {
