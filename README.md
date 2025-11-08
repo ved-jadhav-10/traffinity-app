@@ -5,6 +5,9 @@
 ![Flutter](https://img.shields.io/badge/Flutter-3.9.2+-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.9.2+-0175C2?style=for-the-badge&logo=dart&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+
+---
+
 **A comprehensive smart transportation and navigation platform designed for Indian cities**
 
 [Features](#-key-features) • [Installation](#-installation) • [Architecture](#-architecture) • [Contributing](#-contributing)
