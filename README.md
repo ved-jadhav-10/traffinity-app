@@ -5,8 +5,6 @@
 ![Flutter](https://img.shields.io/badge/Flutter-3.9.2+-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.9.2+-0175C2?style=for-the-badge&logo=dart&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-
 **A comprehensive smart transportation and navigation platform designed for Indian cities**
 
 [Features](#-key-features) • [Installation](#-installation) • [Architecture](#-architecture) • [Contributing](#-contributing)
@@ -417,22 +415,16 @@ We welcome contributions! Please follow these steps:
 
 ---
 
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
 ## 👥 Team
 
-- **Developer**: Ved Jadhav
+- **Developers**: Ved Jadhav, Aditya Rajput
 - **Repository**: [ved-jadhav-10/traffinity-app](https://github.com/ved-jadhav-10/traffinity-app)
 
 ---
 
 ## 📞 Support
 
-For support, email [support@traffinity.app](mailto:support@traffinity.app) or open an issue on GitHub.
+For support, email [ved.amit.jadhav@gmail.com](mailto:ved.amit.jadhav@gmail.com) or open an issue on GitHub.
 
 ---
 
@@ -443,28 +435,6 @@ For support, email [support@traffinity.app](mailto:support@traffinity.app) or op
 - **Flutter Team** for the amazing framework
 - **OpenStreetMap** for geocoding services
 - **Indian Railways** for train data
-
----
-
-## 🗺️ Roadmap
-
-### Q1 2026
-- [ ] Live bus tracking
-- [ ] Metro integration
-- [ ] Carpooling features
-- [ ] AR navigation
-
-### Q2 2026
-- [ ] Offline maps
-- [ ] Multi-language support
-- [ ] Social features
-- [ ] Rewards system
-
-### Q3 2026
-- [ ] Business listings
-- [ ] In-app payments
-- [ ] Carbon offset marketplace
-- [ ] Advanced analytics
 
 ---
 
