@@ -184,16 +184,44 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
       final events = await _eventService.getCityEvents(
         widget.city,
         forceRefresh: forceRefresh,
+        onCacheLoaded: (cachedEvents) async {
+          // Display cached events immediately for instant UI
+          final uniqueCached = _removeDuplicates(cachedEvents);
+          
+          // Geocode any missing coordinates from cache
+          for (var event in uniqueCached) {
+            if (event.latitude == null || event.longitude == null) {
+              final coords = await _eventService.geocodeLocation(
+                event.location,
+                widget.city,
+              );
+              if (coords != null) {
+                event.latitude = coords['latitude'];
+                event.longitude = coords['longitude'];
+              } else {
+                final cityCoords = _cityCoordinates[widget.city];
+                event.latitude = cityCoords?['lat'];
+                event.longitude = cityCoords?['lng'];
+              }
+            }
+          }
+          
+          if (mounted) {
+            setState(() {
+              _events = uniqueCached;
+            });
+            _addEventMarkers();
+            print('⚡ Displaying ${uniqueCached.length} cached events instantly!');
+          }
+        },
       );
 
-      // Remove duplicates first
+      // Process fresh events from network (might include new events)
       final uniqueEvents = _removeDuplicates(events);
 
-      // Only geocode events that don't have coordinates (usually already cached)
-      bool needsGeocoding = false;
+      // Geocode events that don't have coordinates
       for (var event in uniqueEvents) {
         if (event.latitude == null || event.longitude == null) {
-          needsGeocoding = true;
           final coords = await _eventService.geocodeLocation(
             event.location,
             widget.city,
@@ -209,21 +237,30 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             event.longitude = cityCoords?['lng'];
           }
 
-          // Small delay to avoid rate limiting on geocoding (only if actually calling API)
+          // Small delay to avoid rate limiting on geocoding
           await Future.delayed(const Duration(milliseconds: 500));
         }
       }
 
       if (mounted) {
+        // Update with fresh events (may include new ones)
+        final previousCount = _events.length;
         setState(() {
           _events = uniqueEvents;
         });
-      }
-
-      _addEventMarkers();
-
-      if (!needsGeocoding && !forceRefresh) {
-        print('⚡ Events loaded instantly from cache with coordinates!');
+        _addEventMarkers();
+        
+        // Notify user if new events were found
+        final newCount = uniqueEvents.length - previousCount;
+        if (newCount > 0 && !forceRefresh) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🆕 Found $newCount new event${newCount > 1 ? 's' : ''}!'),
+              backgroundColor: const Color(0xFF06d6a0),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('Error loading events: $e');

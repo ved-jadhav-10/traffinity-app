@@ -10,21 +10,42 @@ class LiveEventService {
   static const String _cacheTimePrefix = 'events_cache_time_';
   static const Duration _cacheDuration = Duration(hours: 1); // Cache for 1 hour
 
-  // Get all events with caching support
+  // Get all events with smart caching support
   Future<List<LiveEvent>> getCityEvents(
     String city, {
     bool forceRefresh = false,
+    Function(List<LiveEvent>)? onCacheLoaded,
   }) async {
     try {
-      // Check cache first if not forcing refresh
+      List<LiveEvent>? cachedEvents;
+      
+      // Load from cache first if not forcing refresh
       if (!forceRefresh) {
-        final cachedEvents = await _getCachedEvents(city);
+        cachedEvents = await _getCachedEvents(city);
         if (cachedEvents != null && cachedEvents.isNotEmpty) {
           print('✅ Loaded ${cachedEvents.length} events from cache');
-          return cachedEvents;
+          
+          // If callback provided, return cached events immediately for fast UI
+          if (onCacheLoaded != null) {
+            onCacheLoaded(cachedEvents);
+          }
+          
+          // If cache is fresh (< 5 minutes), return it without background fetch
+          final cacheTime = await _getCacheTime(city);
+          if (cacheTime != null) {
+            final cacheAge = DateTime.now().millisecondsSinceEpoch - cacheTime;
+            if (cacheAge < Duration(minutes: 5).inMilliseconds) {
+              print('⚡ Cache is very fresh, skipping background fetch');
+              return cachedEvents;
+            }
+          }
+          
+          // Cache is valid but older than 5 minutes - fetch in background
+          print('🔄 Fetching new events in background...');
         }
       }
 
+      // Fetch fresh events from network
       print('🔄 Fetching fresh events from network...');
       final List<LiveEvent> allEvents = [];
 
@@ -48,6 +69,18 @@ class LiveEventService {
       await _cacheEvents(city, uniqueEvents);
       print('💾 Cached ${uniqueEvents.length} events');
 
+      // Check if we have new events compared to cache
+      if (cachedEvents != null && cachedEvents.isNotEmpty) {
+        final newEventsCount = uniqueEvents.length - cachedEvents.length;
+        if (newEventsCount > 0) {
+          print('🆕 Found $newEventsCount new events!');
+        } else if (newEventsCount < 0) {
+          print('🗑️ ${-newEventsCount} events expired/removed');
+        } else {
+          print('✓ No new events found');
+        }
+      }
+
       return uniqueEvents;
     } catch (e) {
       print('Error fetching events: $e');
@@ -60,6 +93,16 @@ class LiveEventService {
       }
 
       return [];
+    }
+  }
+
+  // Get cache timestamp
+  Future<int?> _getCacheTime(String city) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_cacheTimePrefix + city);
+    } catch (e) {
+      return null;
     }
   }
 
