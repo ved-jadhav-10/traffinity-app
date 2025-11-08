@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../screens/collections/collections_screen.dart';
 import '../screens/city_incident_map_screen.dart';
+import '../screens/live_events_map_screen.dart';
+import '../services/location_service.dart';
+import '../services/live_event_service.dart';
 
 class TerritoryPage extends StatefulWidget {
   final VoidCallback? onExploreNearby;
@@ -13,6 +18,83 @@ class TerritoryPage extends StatefulWidget {
 }
 
 class _TerritoryPageState extends State<TerritoryPage> {
+  final LocationService _locationService = LocationService();
+  LatLng? _currentLocation;
+  int _liveEventsCount = 0;
+  bool _isLoadingEvents = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeLocation();
+  }
+
+  Future<void> _initializeLocation() async {
+    try {
+      bool hasPermission = await _locationService.checkAndRequestPermissions();
+      if (hasPermission) {
+        Position? position = await _locationService.getCurrentLocation();
+        if (position != null && mounted) {
+          setState(() {
+            _currentLocation = LatLng(position.latitude, position.longitude);
+          });
+          await _loadLiveEventsCount();
+        }
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingEvents = false;
+        });
+      }
+    }
+  }
+
+  String _getCityFromLocation(LatLng location) {
+    final cityCoords = {
+      'Mumbai': LatLng(19.0760, 72.8777),
+      'Delhi': LatLng(28.7041, 77.1025),
+      'Bangalore': LatLng(12.9716, 77.5946),
+      'Pune': LatLng(18.5204, 73.8567),
+      'Raipur': LatLng(21.2514, 81.6296),
+    };
+
+    String closestCity = 'Mumbai';
+    double minDistance = double.infinity;
+
+    cityCoords.forEach((city, coords) {
+      final distance = const Distance().as(
+        LengthUnit.Kilometer,
+        location,
+        coords,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestCity = city;
+      }
+    });
+
+    return closestCity;
+  }
+
+  Future<void> _loadLiveEventsCount() async {
+    if (_currentLocation == null) return;
+
+    try {
+      final city = _getCityFromLocation(_currentLocation!);
+      final events = await LiveEventService().getCityEvents(city);
+      if (mounted) {
+        setState(() {
+          _liveEventsCount = events.length;
+        });
+      }
+    } catch (e) {
+      print('Error loading live events count: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,28 +149,12 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 const SizedBox(height: 32),
 
                 // Feature Cards Section
-                _buildFeatureCard(
-                  icon: Icons.explore,
-                  title: 'Explore Nearby',
-                  description: 'Discover interesting places around you.',
-                  color: const Color(0xFFffa726),
-                  onTap: widget.onExploreNearby,
-                ),
-                const SizedBox(height: 16),
-
-                _buildFeatureCard(
-                  icon: Icons.business_center,
-                  title: 'Our Services',
-                  description: 'Check our website for more services and features!',
-                  color: const Color(0xFF4a90e2),
-                  onTap: _openWebsite,
-                ),
-                const SizedBox(height: 16),
-
+                // 1. City Incident Map
                 _buildFeatureCard(
                   icon: Icons.report_problem,
                   title: 'City Incident Map',
-                  description: 'A live map of all traffic jams, accidents, event or weather related delays.',
+                  description:
+                      'A live map of all traffic jams, accidents, event or weather related delays.',
                   color: const Color(0xFF06d6a0),
                   onTap: () {
                     Navigator.push(
@@ -101,6 +167,31 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 ),
                 const SizedBox(height: 16),
 
+                // 2. Live Events (NEW) - Always show, load in background
+                _buildFeatureCard(
+                  icon: Icons.event,
+                  title: 'Live Events',
+                  description: _isLoadingEvents
+                      ? 'Loading events happening now...'
+                      : (_liveEventsCount > 0
+                            ? '$_liveEventsCount event${_liveEventsCount > 1 ? 's' : ''} happening now - concerts, hackathons, festivals & more!'
+                            : 'Discover concerts, hackathons, festivals & more!'),
+                  color: const Color(0xFFAB47BC),
+                  onTap: () {
+                    final city = _currentLocation != null
+                        ? _getCityFromLocation(_currentLocation!)
+                        : 'Mumbai'; // Default to Mumbai
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LiveEventsMapScreen(city: city),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // 3. Collections
                 _buildFeatureCard(
                   icon: Icons.collections,
                   title: 'Collections',
@@ -114,6 +205,27 @@ class _TerritoryPageState extends State<TerritoryPage> {
                       ),
                     );
                   },
+                ),
+                const SizedBox(height: 16),
+
+                // 4. Explore Nearby
+                _buildFeatureCard(
+                  icon: Icons.explore,
+                  title: 'Explore Nearby',
+                  description: 'Discover interesting places around you.',
+                  color: const Color(0xFFffa726),
+                  onTap: widget.onExploreNearby,
+                ),
+                const SizedBox(height: 16),
+
+                // 5. Our Services
+                _buildFeatureCard(
+                  icon: Icons.business_center,
+                  title: 'Our Services',
+                  description:
+                      'Check our website for more services and features!',
+                  color: const Color(0xFF4a90e2),
+                  onTap: _openWebsite,
                 ),
                 const SizedBox(height: 32),
 
@@ -170,7 +282,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
   Future<void> _openWebsite() async {
     final url = Uri.parse('https://github.com/harshilbiyani');
-    
+
     // Show confirmation dialog
     final shouldOpen = await showDialog<bool>(
       context: context,
@@ -190,10 +302,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
           ),
           content: const Text(
             'You will be redirected outside our app to view our services.',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              color: Color(0xFF9e9e9e),
-            ),
+            style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9e9e9e)),
           ),
           actions: [
             TextButton(
@@ -231,10 +340,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
     // If user confirmed, open the URL
     if (shouldOpen == true) {
       try {
-        await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(url, mode: LaunchMode.externalApplication);
       } catch (e) {
         // Show error if URL can't be opened
         if (mounted) {
