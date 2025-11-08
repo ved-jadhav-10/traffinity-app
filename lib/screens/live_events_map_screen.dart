@@ -1085,7 +1085,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                         fontFamily: 'Poppins',
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                     ),
                   ),
@@ -1100,6 +1100,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             left: 0,
             right: 0,
             child: Container(
+              height: 180, // Fixed height to prevent layout issues
               padding: EdgeInsets.only(
                 bottom:
                     MediaQuery.of(context).padding.bottom +
@@ -1178,7 +1179,6 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      shrinkWrap: true, // Allow ListView to size based on content
                       itemCount: _filteredEvents.length,
                       itemBuilder: (context, index) {
                         final event = _filteredEvents[index];
@@ -1190,7 +1190,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
 
           // Compass button for recentering (same as home page)
           Positioned(
-            bottom: 170, // Adjusted for slider height + safe area
+            bottom: 185, // Adjusted for slider height + safe area
             left: 24,
             child: Container(
               decoration: BoxDecoration(
@@ -1223,7 +1223,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
 
           // Add event button (moved up to avoid overlap with slider)
           Positioned(
-            bottom: 170, // Adjusted for slider height + safe area
+            bottom: 185, // Adjusted for slider height + safe area
             right: 24,
             child: FloatingActionButton.extended(
               onPressed: _showAddEventDialog,
@@ -1234,7 +1234,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
             ),
