@@ -17,6 +17,7 @@ import '../config/tomtom_config.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/collections/collections_screen.dart';
+import '../screens/feedback/feedback_screen.dart';
 import 'transport_page.dart';
 import 'territory_page.dart';
 import 'live_navigation_screen.dart';
@@ -1700,6 +1701,22 @@ class _MapHomePageState extends State<MapHomePage> {
                 },
               ),
 
+              ListTile(
+                leading: const Icon(Icons.feedback, color: Color(0xFF06d6a0)),
+                title: const Text(
+                  'Feedback',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Color(0xFFf5f6fa),
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToFeedback();
+                },
+              ),
+
               const Divider(color: Color(0xFF3a3a3a), height: 1),
 
               ListTile(
@@ -1760,6 +1777,15 @@ class _MapHomePageState extends State<MapHomePage> {
       context,
       MaterialPageRoute(
         builder: (context) => const CollectionsScreen(),
+      ),
+    );
+  }
+
+  void _navigateToFeedback() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FeedbackScreen(),
       ),
     );
   }

@@ -46,6 +46,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   double _compassHeading = 0.0;
   LatLng? _currentPosition;
   LatLng? _initialMapCenter; // Store initial map center to prevent jumping
+  String _originalETA = ''; // Store the original ETA from route
 
   // Traffic flow data
   List<TrafficFlowSegment> _trafficFlows = [];
@@ -62,11 +63,41 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    _calculateOriginalETA();
     _initializeTTS();
     _startNavigation();
     _initializeCompass();
     _startTrafficRefresh();
     _startWeatherRefresh();
+  }
+
+  void _calculateOriginalETA() {
+    // Calculate ETA from the original route (same logic as map_home_page.dart)
+    final timeStr = widget.route.formattedTime;
+    int totalMinutes = 0;
+
+    // Extract hours and minutes
+    final hourMatch = RegExp(r'(\d+)\s*h').firstMatch(timeStr);
+    final minMatch = RegExp(r'(\d+)\s*min').firstMatch(timeStr);
+
+    if (hourMatch != null) {
+      totalMinutes += int.parse(hourMatch.group(1)!) * 60;
+    }
+    if (minMatch != null) {
+      totalMinutes += int.parse(minMatch.group(1)!);
+    }
+
+    // Add to current time
+    final arrivalTime = DateTime.now().add(Duration(minutes: totalMinutes));
+
+    // Format as "3:45 PM"
+    final hour = arrivalTime.hour > 12
+        ? arrivalTime.hour - 12
+        : (arrivalTime.hour == 0 ? 12 : arrivalTime.hour);
+    final period = arrivalTime.hour >= 12 ? 'PM' : 'AM';
+    final minute = arrivalTime.minute.toString().padLeft(2, '0');
+
+    _originalETA = '$hour:$minute $period';
   }
 
   @override
@@ -920,7 +951,7 @@ class _LiveNavigationScreenState extends State<LiveNavigationScreen> {
           _buildStatItem(
             icon: Icons.schedule,
             label: 'ETA',
-            value: _currentState!.eta,
+            value: _originalETA,
             color: AppTheme.primaryGreen,
           ),
           
