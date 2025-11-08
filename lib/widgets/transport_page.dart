@@ -55,7 +55,7 @@ class _TransportPageState extends State<TransportPage> {
 
                 // Description
                 const Text(
-                  'Track routes, monitor delays, and plan sustainable trips efficiently.',
+                  'Track routes, check your impact and plan sustainable trips efficiently.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,

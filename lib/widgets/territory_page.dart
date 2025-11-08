@@ -137,7 +137,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
                 // Description
                 const Text(
-                  'Explore, discover more, check city updates, and save memories.',
+                  'Check city updates, report incidents, and explore.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -154,7 +154,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   title: 'City Incident Map',
                   description:
                       'A live map of all traffic jams, accidents, event or weather related delays.',
-                  color: const Color(0xFF06d6a0),
+                  color: const Color(0xFFffa726),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -172,7 +172,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   title: 'Civic Issue Map',
                   description:
                       'Report civic issues like potholes, garbage collection and more.',
-                  color: const Color(0xFF4a90e2),
+                  color: const Color(0xFF06d6a0),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -193,7 +193,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                       : (_liveEventsCount > 0
                             ? '$_liveEventsCount event${_liveEventsCount > 1 ? 's' : ''} happening now - concerts, hackathons, festivals & more!'
                             : 'Discover concerts, hackathons, festivals & more!'),
-                  color: const Color(0xFFAB47BC),
+                  color: const Color(0xFFf54248),
                   onTap: () {
                     final city = _currentLocation != null
                         ? _getCityFromLocation(_currentLocation!)
@@ -213,7 +213,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   icon: Icons.explore,
                   title: 'Explore Nearby',
                   description: 'Discover interesting places around you.',
-                  color: const Color(0xFFffa726),
+                  color: const Color(0xFF4a90e2),
                   onTap: widget.onExploreNearby,
                 ),
                 const SizedBox(height: 32),

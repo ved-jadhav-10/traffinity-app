@@ -1164,15 +1164,22 @@ class _AddEditTripDialogState extends State<_AddEditTripDialog> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildTransportOption('car', Icons.directions_car),
-                      _buildTransportOption('bike', Icons.two_wheeler),
-                      _buildTransportOption('train', Icons.train),
-                      _buildTransportOption('bus', Icons.directions_bus),
-                      _buildTransportOption('plane', Icons.flight),
-                    ],
+                  SizedBox(
+                    height: 80,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildTransportOption('car', Icons.directions_car),
+                        const SizedBox(width: 8),
+                        _buildTransportOption('bike', Icons.two_wheeler),
+                        const SizedBox(width: 8),
+                        _buildTransportOption('train', Icons.train),
+                        const SizedBox(width: 8),
+                        _buildTransportOption('bus', Icons.directions_bus),
+                        const SizedBox(width: 8),
+                        _buildTransportOption('plane', Icons.flight),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 

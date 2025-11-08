@@ -1100,7 +1100,6 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             left: 0,
             right: 0,
             child: Container(
-              height: 160, // Increased height to accommodate padding
               padding: EdgeInsets.only(
                 bottom:
                     MediaQuery.of(context).padding.bottom +
@@ -1179,6 +1178,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                         horizontal: 16,
                         vertical: 8,
                       ),
+                      shrinkWrap: true, // Allow ListView to size based on content
                       itemCount: _filteredEvents.length,
                       itemBuilder: (context, index) {
                         final event = _filteredEvents[index];
