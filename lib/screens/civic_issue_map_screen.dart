@@ -165,7 +165,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF4a90e2),
+                color: const Color(0xFF06d6a0),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
@@ -280,7 +280,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4a90e2),
+                  backgroundColor: const Color(0xFF06d6a0),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -306,7 +306,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF4a90e2), size: 20),
+        Icon(icon, color: const Color(0xFF06d6a0), size: 20),
         const SizedBox(width: 12),
         Text(
           '$label: ',
@@ -381,14 +381,14 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF4a90e2)),
+            icon: const Icon(Icons.refresh, color: Color(0xFF06d6a0)),
             onPressed: _loadCivicIssues,
           ),
         ],
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4a90e2)),
+              child: CircularProgressIndicator(color: Color(0xFF06d6a0)),
             )
           : _isMapInitialized && _currentLocation != null
           ? Stack(
@@ -422,7 +422,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
                           height: 30,
                           child: const Icon(
                             Icons.my_location,
-                            color: Color(0xFF4a90e2),
+                            color: Color(0xFF06d6a0),
                             size: 30,
                           ),
                         ),
@@ -492,7 +492,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
                           Icon(
                             Icons.info_outline,
                             size: 16,
-                            color: Color(0xFF4a90e2),
+                            color: Color(0xFF06d6a0),
                           ),
                           SizedBox(width: 8),
                           Flexible(
@@ -537,7 +537,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
                           'assets/icons/compass.png',
                           width: 48,
                           height: 48,
-                          color: const Color(0xFF4a90e2),
+                          color: const Color(0xFF06d6a0),
                         ),
                       ),
                       tooltip: 'Compass - Recenter & Reset North',
@@ -559,7 +559,7 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
       floatingActionButton: _isMapInitialized
           ? FloatingActionButton.extended(
               onPressed: _showReportIssueSheet,
-              backgroundColor: const Color(0xFF4a90e2),
+              backgroundColor: const Color(0xFF06d6a0),
               icon: const Icon(Icons.report, color: Colors.white),
               label: const Text(
                 'Report Issue',
@@ -705,7 +705,7 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
                 ? 'Issue reported successfully with photo!'
                 : 'Issue reported successfully!',
             ),
-            backgroundColor: const Color(0xFF4a90e2),
+            backgroundColor: const Color(0xFF06d6a0),
           ),
         );
       }
@@ -791,12 +791,12 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFF4a90e2)
+                          ? const Color(0xFF06d6a0)
                           : const Color(0xFF1c1c1c),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
-                            ? const Color(0xFF4a90e2)
+                            ? const Color(0xFF06d6a0)
                             : const Color(0xFF444444),
                       ),
                     ),
@@ -950,7 +950,7 @@ class _ReportIssueSheetState extends State<ReportIssueSheet> {
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitReport,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4a90e2),
+                  backgroundColor: const Color(0xFF06d6a0),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

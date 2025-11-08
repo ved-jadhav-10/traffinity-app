@@ -1028,7 +1028,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                       color: Color(0xFF06d6a0),
                     ),
                   )
-                : const Icon(Icons.refresh, color: Color(0xFFf5f6fa)),
+                : const Icon(Icons.refresh, color: Color(0xFF06d6a0)),
             onPressed: _isRefreshing ? null : _refreshEvents,
           ),
         ],
@@ -1076,7 +1076,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.event, color: Colors.white, size: 24),
+                  const Icon(Icons.event, color: Colors.black, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1228,7 +1228,7 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
             child: FloatingActionButton.extended(
               onPressed: _showAddEventDialog,
               backgroundColor: const Color(0xFF06d6a0),
-              icon: const Icon(Icons.add, color: Colors.white),
+              icon: const Icon(Icons.add, color: Color.fromARGB(255, 0, 0, 0)),
               label: const Text(
                 'Add Event',
                 style: TextStyle(
