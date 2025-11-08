@@ -242,7 +242,7 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
                           child: const Icon(
                             Icons.eco,
                             size: 32,
-                            color: Colors.white,
+                            color: const Color(0xFF1c1c1c),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -256,7 +256,7 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
                                   fontFamily: 'Poppins',
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: const Color(0xFF1c1c1c),
                                 ),
                               ),
                               SizedBox(height: 4),
@@ -265,7 +265,7 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
                                 style: TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 13,
-                                  color: Colors.white,
+                                  color: const Color(0xFF1c1c1c),
                                 ),
                               ),
                             ],
@@ -426,7 +426,7 @@ class _ImpactTrackerCalculatorState extends State<ImpactTrackerCalculator>
                       onPressed: _calculateImpact,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF06d6a0),
-                        foregroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1c1c1c),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),

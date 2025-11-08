@@ -136,7 +136,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF06d6a0),
         onPressed: () => _showAddEditTripDialog(),
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: Color.fromARGB(255, 0, 0, 0)),
       ),
     );
   }
