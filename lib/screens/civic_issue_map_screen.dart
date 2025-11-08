@@ -560,14 +560,14 @@ class _CivicIssueMapScreenState extends State<CivicIssueMapScreen> {
           ? FloatingActionButton.extended(
               onPressed: _showReportIssueSheet,
               backgroundColor: const Color(0xFF06d6a0),
-              icon: const Icon(Icons.report, color: Colors.white),
+              icon: const Icon(Icons.report, color: Colors.black),
               label: const Text(
                 'Report Issue',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
             )
