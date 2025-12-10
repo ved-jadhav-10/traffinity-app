@@ -193,18 +193,38 @@ class _TerritoryPageState extends State<TerritoryPage> {
                       ? 'Loading events happening now...'
                       : (_liveEventsCount > 0
                             ? '$_liveEventsCount event${_liveEventsCount > 1 ? 's' : ''} happening now - concerts, hackathons, festivals & more!'
-                            : 'Discover concerts, hackathons, festivals & more!'),
+                            : 'Discover concerts, hackathon, festivals & more!'),
                   color: const Color(0xFFf54248),
-                  onTap: () {
-                    final city = _currentLocation != null
-                        ? _getCityFromLocation(_currentLocation!)
-                        : 'Mumbai'; // Default to Mumbai
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LiveEventsMapScreen(city: city),
-                      ),
-                    );
+                  onTap: () async {
+                    // Ensure we have current location before proceeding
+                    String city = 'Pune'; // Default to Pune instead of Mumbai
+                    
+                    if (_currentLocation != null) {
+                      city = _getCityFromLocation(_currentLocation!);
+                    } else {
+                      // Try to get location one more time
+                      try {
+                        bool hasPermission = await _locationService.checkAndRequestPermissions();
+                        if (hasPermission) {
+                          Position? position = await _locationService.getCurrentLocation();
+                          if (position != null) {
+                            final location = LatLng(position.latitude, position.longitude);
+                            city = _getCityFromLocation(location);
+                          }
+                        }
+                      } catch (e) {
+                        print('Error getting location for events: $e');
+                      }
+                    }
+                    
+                    if (mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => LiveEventsMapScreen(city: city),
+                        ),
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 16),

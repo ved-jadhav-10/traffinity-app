@@ -77,6 +77,9 @@ dependencies:
   # URL launcher for opening external links
   url_launcher: ^6.3.1
 
+  # Profanity filter for content moderation
+  profanity_filter: ^2.0.0
+
   # Image picker for camera and gallery
   image_picker: ^1.1.2
 

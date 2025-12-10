@@ -872,6 +872,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.0"
+  profanity_filter:
+    dependency: "direct main"
+    description:
+      name: profanity_filter
+      sha256: afe466d42a2763a5b86849192bee3337de45a9566d5915a0fe4aa5f9cd2e8ac4
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   proj4dart:
     dependency: transitive
     description:

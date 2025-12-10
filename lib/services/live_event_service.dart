@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:profanity_filter/profanity_filter.dart';
 import 'supabase_service.dart';
 
 class LiveEventService {
@@ -283,8 +284,27 @@ class LiveEventService {
         return null;
       }
 
-      // Extract date/time if mentioned (basic parsing)
+      // Filter out profanity
+      if (_containsProfanity(title) || _containsProfanity(description)) {
+        print('Skipping event with inappropriate content: $title');
+        return null;
+      }
+
+      // Extract date/time if mentioned
       final eventDate = _extractEventDate(title, description);
+
+      // Skip if event date is in the past (more than 2 hours ago)
+      if (eventDate != null && eventDate.isBefore(DateTime.now().subtract(const Duration(hours: 2)))) {
+        print('Skipping past event: $title (${eventDate.toString()})');
+        return null;
+      }
+
+      // Skip if post is too old (more than 14 days) and no explicit date found
+      final postAge = DateTime.now().millisecondsSinceEpoch - (createdUtc * 1000).toInt();
+      if (eventDate == null && postAge > Duration(days: 14).inMilliseconds) {
+        print('Skipping old post without event date: $title');
+        return null;
+      }
 
       return LiveEvent(
         id: postData['id'],
@@ -366,7 +386,9 @@ class LiveEventService {
           final title = _decodeHtml(titleMatch.group(1) ?? '');
           final description = _decodeHtml(descMatch?.group(1) ?? '');
 
-          if (_isEventPost(title, description)) {
+          if (_isEventPost(title, description) && 
+              !_containsProfanity(title) && 
+              !_containsProfanity(description)) {
             final pubDate = dateMatch?.group(1);
             DateTime? eventDate;
 
@@ -542,6 +564,9 @@ class LiveEventService {
   }
 
   bool _isEventPost(String title, String description) {
+    final text = '${title.toLowerCase()} ${description.toLowerCase()}';
+
+    // 1. Must contain at least one event keyword
     final eventKeywords = [
       'event',
       'concert',
@@ -560,43 +585,302 @@ class LiveEventService {
       'show',
       'performance',
       'exhibition',
+      'workshop',
+      'seminar',
+      'webinar',
+      'competition',
     ];
 
-    final text = '${title.toLowerCase()} ${description.toLowerCase()}';
-    return eventKeywords.any((keyword) => text.contains(keyword));
+    bool hasEventKeyword = eventKeywords.any((keyword) => text.contains(keyword));
+    if (!hasEventKeyword) return false;
+
+    // 2. Filter out common non-events (noise reduction)
+    final excludeKeywords = [
+      'looking for',
+      'wanted',
+      'hiring',
+      'job',
+      'recommendation',
+      'suggest',
+      'opinion',
+      'question',
+      'help needed',
+      'advice',
+      'rant',
+      'complaint',
+      'daily discussion',
+      'weekly thread',
+      'what to do',
+      'where to',
+      'how to',
+      'psa:',
+      'reminder:',
+      'meta',
+    ];
+
+    bool hasExcludedContent = excludeKeywords.any((keyword) => text.contains(keyword));
+    if (hasExcludedContent) return false;
+
+    // 3. Check for date/time indicators (higher relevance)
+    final dateIndicators = [
+      'today',
+      'tomorrow',
+      'tonight',
+      'this week',
+      'next week',
+      'this weekend',
+      'saturday',
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'january',
+      'february',
+      'march',
+      'april',
+      'may',
+      'june',
+      'july',
+      'august',
+      'september',
+      'october',
+      'november',
+      'december',
+      r'\d{1,2}[/-]\d{1,2}', // Date patterns like 15/12 or 15-12
+      r'\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)',
+      r'\d{1,2}:\d{2}\s*(am|pm)', // Time patterns
+    ];
+
+    bool hasDateInfo = dateIndicators.any((pattern) {
+      if (pattern.startsWith(r'\d')) {
+        return RegExp(pattern, caseSensitive: false).hasMatch(text);
+      }
+      return text.contains(pattern);
+    });
+
+    // 4. Check for location/venue indicators
+    final locationIndicators = [
+      'at ',
+      'venue:',
+      'location:',
+      'stadium',
+      'arena',
+      'hall',
+      'center',
+      'centre',
+      'park',
+      'ground',
+      'auditorium',
+      'mall',
+      'hotel',
+      'club',
+      'bar',
+      'restaurant',
+    ];
+
+    bool hasLocationInfo = locationIndicators.any((indicator) => text.contains(indicator));
+
+    // 5. Title length check (too short = likely spam/low quality)
+    if (title.trim().length < 10) return false;
+
+    // 6. Check for registration/ticket/RSVP indicators (strong event signal)
+    final registrationIndicators = [
+      'register',
+      'registration',
+      'rsvp',
+      'ticket',
+      'entry',
+      'admission',
+      'book',
+      'reserve',
+      'sign up',
+      'signup',
+      'join us',
+    ];
+
+    bool hasRegistrationInfo = registrationIndicators.any((indicator) => text.contains(indicator));
+
+    // Scoring system: Higher score = more likely to be a real event
+    int relevanceScore = 0;
+    if (hasDateInfo) relevanceScore += 2;
+    if (hasLocationInfo) relevanceScore += 2;
+    if (hasRegistrationInfo) relevanceScore += 2;
+    if (title.split(' ').length >= 5) relevanceScore += 1; // Descriptive title
+
+    // Require minimum relevance score of 3 for inclusion
+    return relevanceScore >= 3;
   }
 
   String _extractLocation(String title, String description, String city) {
-    // Simple location extraction (can be enhanced with NLP)
     final text = '$title $description';
-    final locationPattern = RegExp(
-      r'(?:at|@|venue:|location:)\s+([A-Z][a-zA-Z\s]+(?:Stadium|Arena|Hall|Center|Park|Ground|Grounds))',
-    );
-
-    final match = locationPattern.firstMatch(text);
-    if (match != null) {
-      return match.group(1)?.trim() ?? city;
-    }
-
-    return city; // Default to city name
-  }
-
-  DateTime? _extractEventDate(String title, String description) {
-    // Basic date extraction (can be enhanced)
-    final text = '$title $description';
-    final datePatterns = [
-      RegExp(r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'),
-      RegExp(r'(today|tomorrow|this weekend)'),
+    
+    // 1. Explicit location markers with improved regex
+    final locationPatterns = [
+      // "at Location Name" or "@ Location Name"
+      RegExp(
+        r'(?:at|@)\s+([A-Z][a-zA-Z\s&,.-]+(?:Stadium|Arena|Hall|Center|Centre|Park|Ground|Grounds|Auditorium|Mall|Hotel|Club|Bar|Restaurant|Cafe|Theatre|Theater|Complex|Lawn|Gardens?))',
+        caseSensitive: true,
+      ),
+      // "venue: Location" or "location: Location"
+      RegExp(
+        r'(?:venue|location|place):\s*([A-Z][a-zA-Z\s&,.-]+)',
+        caseSensitive: true,
+      ),
+      // Common venue types even without markers
+      RegExp(
+        r'\b([A-Z][a-zA-Z\s&]+\s+(?:Stadium|Arena|Hall|Center|Centre|Park|Auditorium|Mall|Hotel|Club|Complex|Gardens?))\b',
+      ),
     ];
 
-    for (var pattern in datePatterns) {
-      if (pattern.hasMatch(text)) {
-        // Return approximate date
-        return DateTime.now().add(const Duration(days: 1));
+    for (var pattern in locationPatterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        final location = match.group(1)?.trim();
+        if (location != null && location.length > 3) {
+          // Clean up the location
+          return location
+              .replaceAll(RegExp(r'\s+'), ' ') // Remove extra spaces
+              .replaceAll(RegExp(r'[,.]$'), ''); // Remove trailing punctuation
+        }
       }
     }
 
-    return null;
+    // 2. Look for well-known venues in major cities
+    final venueKeywords = [
+      'stadium', 'arena', 'hall', 'center', 'centre', 
+      'park', 'ground', 'auditorium', 'mall', 'hotel',
+      'club', 'complex', 'theater', 'theatre',
+    ];
+    
+    final textLower = text.toLowerCase();
+    for (var keyword in venueKeywords) {
+      if (textLower.contains(keyword)) {
+        // Try to extract the full venue name around this keyword
+        final venuePattern = RegExp(
+          r'\b([A-Z][a-zA-Z\s&]+\s+$keyword)\b',
+          caseSensitive: false,
+        );
+        final match = venuePattern.firstMatch(text);
+        if (match != null) {
+          final venue = match.group(1)?.trim();
+          if (venue != null && venue.length > keyword.length + 3) {
+            return venue;
+          }
+        }
+      }
+    }
+
+    // 3. Default to city name
+    return city;
+  }
+
+  DateTime? _extractEventDate(String title, String description) {
+    final text = '$title $description'.toLowerCase();
+    final now = DateTime.now();
+
+    // 1. Check for relative dates
+    if (text.contains('today')) {
+      return DateTime(now.year, now.month, now.day, 18, 0); // Default to 6 PM
+    }
+    if (text.contains('tomorrow')) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 18, 0);
+    }
+    if (text.contains('this weekend') || text.contains('saturday')) {
+      // Find next Saturday
+      int daysUntilSaturday = (6 - now.weekday) % 7;
+      if (daysUntilSaturday == 0 && now.hour > 18) daysUntilSaturday = 7;
+      final saturday = now.add(Duration(days: daysUntilSaturday));
+      return DateTime(saturday.year, saturday.month, saturday.day, 18, 0);
+    }
+    if (text.contains('sunday')) {
+      int daysUntilSunday = (7 - now.weekday) % 7;
+      if (daysUntilSunday == 0 && now.hour > 18) daysUntilSunday = 7;
+      final sunday = now.add(Duration(days: daysUntilSunday));
+      return DateTime(sunday.year, sunday.month, sunday.day, 18, 0);
+    }
+    if (text.contains('this week')) {
+      return now.add(const Duration(days: 3)); // Default to 3 days ahead
+    }
+    if (text.contains('next week')) {
+      return now.add(const Duration(days: 7));
+    }
+
+    // 2. Pattern: "15th December" or "15 Dec"
+    final monthDayPattern = RegExp(
+      r'(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)',
+      caseSensitive: false,
+    );
+    final monthDayMatch = monthDayPattern.firstMatch(text);
+    if (monthDayMatch != null) {
+      final day = int.tryParse(monthDayMatch.group(1)!);
+      final monthStr = monthDayMatch.group(2)!.toLowerCase();
+      
+      final monthMap = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12,
+      };
+      
+      final month = monthMap[monthStr];
+      if (day != null && month != null && day >= 1 && day <= 31) {
+        // Determine year (if month has passed, assume next year)
+        int year = now.year;
+        if (month < now.month || (month == now.month && day < now.day)) {
+          year++;
+        }
+        
+        try {
+          return DateTime(year, month, day, 18, 0);
+        } catch (e) {
+          print('Invalid date: $day/$month/$year');
+        }
+      }
+    }
+
+    // 3. Pattern: "12/15" or "15-12" (DD/MM or DD-MM)
+    final dateSlashPattern = RegExp(r'(\d{1,2})[/-](\d{1,2})');
+    final dateSlashMatch = dateSlashPattern.firstMatch(text);
+    if (dateSlashMatch != null) {
+      final first = int.tryParse(dateSlashMatch.group(1)!);
+      final second = int.tryParse(dateSlashMatch.group(2)!);
+      
+      // Assume DD/MM format (Indian standard)
+      if (first != null && second != null && first <= 31 && second <= 12) {
+        int year = now.year;
+        if (second < now.month || (second == now.month && first < now.day)) {
+          year++;
+        }
+        
+        try {
+          return DateTime(year, second, first, 18, 0);
+        } catch (e) {
+          print('Invalid date: $first/$second/$year');
+        }
+      }
+    }
+
+    // 4. Pattern: Time mentioned like "6 PM" or "18:00"
+    final timePattern = RegExp(r'(\d{1,2}):?(\d{2})?\s*(am|pm)', caseSensitive: false);
+    final timeMatch = timePattern.firstMatch(text);
+    if (timeMatch != null) {
+      // If time is mentioned, assume event is within next 7 days
+      return now.add(const Duration(days: 2));
+    }
+
+    // 5. If no date found but has event keywords, default to near future
+    return now.add(const Duration(days: 1));
   }
 
   String _categorizeEvent(String title, String description) {
@@ -679,6 +963,13 @@ class LiveEventService {
       seen.add(key);
       return true;
     }).toList();
+  }
+
+  // Check for profanity in text
+  bool _containsProfanity(String text) {
+    if (text.isEmpty) return false;
+    final filter = ProfanityFilter();
+    return filter.hasProfanity(text);
   }
 
   // Calculate traffic impact based on attendance

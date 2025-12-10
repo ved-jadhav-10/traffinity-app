@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:profanity_filter/profanity_filter.dart';
 import '../services/live_event_service.dart';
 import '../services/location_service.dart';
 import '../config/tomtom_config.dart';
@@ -278,9 +279,22 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
     setState(() {});
   }
 
+  bool _containsProfanity(String text) {
+    final filter = ProfanityFilter();
+    return filter.hasProfanity(text);
+  }
+
   List<LiveEvent> get _filteredEvents {
-    if (_selectedFilter == null) return _events;
-    return _events.where((e) => e.eventType == _selectedFilter).toList();
+    // Filter out expired events (24 hours after start time)
+    final now = DateTime.now();
+    final activeEvents = _events.where((event) {
+      final expiryTime = event.startTime.add(const Duration(hours: 24));
+      return expiryTime.isAfter(now);
+    }).toList();
+
+    // Apply category filter if selected
+    if (_selectedFilter == null) return activeEvents;
+    return activeEvents.where((e) => e.eventType == _selectedFilter).toList();
   }
 
   List<Marker> get _eventMarkers {
@@ -563,11 +577,12 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
     final locationController = TextEditingController();
     final attendanceController = TextEditingController();
     String selectedType = 'concert';
-    DateTime selectedDate = DateTime.now();
-    DateTime selectedEndDate = DateTime.now().add(const Duration(hours: 3));
+    DateTime selectedDate = DateTime.now().add(const Duration(hours: 0)); // Default to now
+    DateTime selectedEndDate = DateTime.now().add(const Duration(hours: 24)); // Default to 24 hours from now
     TrafficImpact selectedImpact = TrafficImpact.medium;
     double? detectedLatitude; // Store detected coordinates
     double? detectedLongitude;
+    bool isSearchingLocation = false;
 
     showModalBottomSheet(
       context: context,
@@ -654,15 +669,35 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Location with auto-detect button
+                // Location with search and auto-detect buttons
                 TextField(
                   controller: locationController,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     color: Color(0xFFf5f6fa),
                   ),
+                  onChanged: (value) async {
+                    // Search for location as user types
+                    if (value.length > 3 && !isSearchingLocation) {
+                      isSearchingLocation = true;
+                      // Debounce search
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (locationController.text == value && value.length > 3) {
+                        // Geocode the typed location
+                        final coords = await _eventService.geocodeLocation(
+                          value,
+                          widget.city,
+                        );
+                        if (coords != null) {
+                          detectedLatitude = coords['latitude'];
+                          detectedLongitude = coords['longitude'];
+                        }
+                      }
+                      isSearchingLocation = false;
+                    }
+                  },
                   decoration: InputDecoration(
-                    labelText: 'Location',
+                    labelText: 'Location (e.g., "Gateway of India, Mumbai")',
                     labelStyle: const TextStyle(color: Color(0xFF9e9e9e)),
                     filled: true,
                     fillColor: const Color(0xFF1c1c1c),
@@ -670,13 +705,28 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.my_location,
-                        color: Color(0xFF06d6a0),
-                      ),
-                      tooltip: 'Use current location',
-                      onPressed: () async {
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSearchingLocation)
+                          const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF06d6a0),
+                              ),
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.my_location,
+                            color: Color(0xFF06d6a0),
+                          ),
+                          tooltip: 'Use my current location',
+                          onPressed: () async {
                         try {
                           // Get current location
                           bool hasPermission = await _locationService
@@ -773,6 +823,8 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                           }
                         }
                       },
+                    ),
+                      ],
                     ),
                   ),
                 ),
@@ -872,6 +924,101 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                     setModalState(() => selectedImpact = value!);
                   },
                 ),
+                const SizedBox(height: 16),
+
+                // Start Date & Time
+                GestureDetector(
+                  onTap: () async {
+                    final DateTime? pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      builder: (context, child) {
+                        return Theme(
+                          data: ThemeData.dark().copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: Color(0xFF06d6a0),
+                              surface: Color(0xFF2a2a2a),
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+
+                    if (pickedDate != null && context.mounted) {
+                      final TimeOfDay? pickedTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(selectedDate),
+                        builder: (context, child) {
+                          return Theme(
+                            data: ThemeData.dark().copyWith(
+                              colorScheme: const ColorScheme.dark(
+                                primary: Color(0xFF06d6a0),
+                                surface: Color(0xFF2a2a2a),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+
+                      if (pickedTime != null) {
+                        setModalState(() {
+                          selectedDate = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            pickedTime.hour,
+                            pickedTime.minute,
+                          );
+                          // Auto-set end date to 3 hours after start
+                          selectedEndDate = selectedDate.add(const Duration(hours: 3));
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1c1c1c),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today, color: Color(0xFF06d6a0), size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Start Date & Time',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  color: Color(0xFF9e9e9e),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat('MMM dd, yyyy • h:mm a').format(selectedDate),
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 14,
+                                  color: Color(0xFFf5f6fa),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, color: Color(0xFF9e9e9e), size: 16),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 // Submit Button
@@ -885,6 +1032,32 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Please fill required fields'),
+                            backgroundColor: Color(0xFFf54748),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Check for profanity in title and description
+                      if (_containsProfanity(titleController.text) ||
+                          _containsProfanity(descriptionController.text)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Inappropriate content detected. Please use respectful language.',
+                            ),
+                            backgroundColor: Color(0xFFf54748),
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Prevent creating events in the past
+                      if (selectedDate.isBefore(DateTime.now())) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Event date cannot be in the past'),
                             backgroundColor: Color(0xFFf54748),
                           ),
                         );
