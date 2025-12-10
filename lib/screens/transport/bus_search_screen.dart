@@ -261,7 +261,7 @@ class _BusSearchScreenState extends State<BusSearchScreen>
                 onPressed: _isSearchingBuses ? null : _searchBuses,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF06d6a0),
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -388,7 +388,7 @@ class _BusSearchScreenState extends State<BusSearchScreen>
                 onPressed: _isLoadingRoute ? null : _searchRouteByNumber,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF06d6a0),
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
