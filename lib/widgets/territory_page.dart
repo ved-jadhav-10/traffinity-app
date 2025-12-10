@@ -216,50 +216,6 @@ class _TerritoryPageState extends State<TerritoryPage> {
                   color: const Color(0xFF4a90e2),
                   onTap: widget.onExploreNearby,
                 ),
-                const SizedBox(height: 32),
-
-                // Coming Soon Banner
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF06d6a0), Color(0xFF05b48a)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.construction,
-                        size: 48,
-                        color: Color(0xFF1c1c1c),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Coming Soon',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1c1c1c),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'We\'re building amazing Territory features for you!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 14,
-                          color: Color(0xFF1c1c1c),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 100), // Extra padding for bottom nav
               ],
             ),
