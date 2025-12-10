@@ -6,6 +6,8 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import '../services/live_event_service.dart';
 import '../services/location_service.dart';
+import '../services/tomtom_service.dart';
+import '../models/location_model.dart';
 import '../config/tomtom_config.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
@@ -576,13 +578,16 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
     final descriptionController = TextEditingController();
     final locationController = TextEditingController();
     final attendanceController = TextEditingController();
+    final TomTomService tomtomService = TomTomService();
     String selectedType = 'concert';
-    DateTime selectedDate = DateTime.now().add(const Duration(hours: 0)); // Default to now
-    DateTime selectedEndDate = DateTime.now().add(const Duration(hours: 24)); // Default to 24 hours from now
+    DateTime selectedDate = DateTime.now().add(const Duration(hours: 1)); // Default to 1 hour from now
+    DateTime selectedEndDate = DateTime.now().add(const Duration(hours: 4)); // Default to 4 hours from now
     TrafficImpact selectedImpact = TrafficImpact.medium;
     double? detectedLatitude; // Store detected coordinates
     double? detectedLongitude;
     bool isSearchingLocation = false;
+    List<SearchResult> locationSearchResults = [];
+    Timer? searchDebounce;
 
     showModalBottomSheet(
       context: context,
@@ -670,63 +675,86 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                 const SizedBox(height: 16),
 
                 // Location with search and auto-detect buttons
-                TextField(
-                  controller: locationController,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    color: Color(0xFFf5f6fa),
-                  ),
-                  onChanged: (value) async {
-                    // Search for location as user types
-                    if (value.length > 3 && !isSearchingLocation) {
-                      isSearchingLocation = true;
-                      // Debounce search
-                      await Future.delayed(const Duration(milliseconds: 500));
-                      if (locationController.text == value && value.length > 3) {
-                        // Geocode the typed location
-                        final coords = await _eventService.geocodeLocation(
-                          value,
-                          widget.city,
-                        );
-                        if (coords != null) {
-                          detectedLatitude = coords['latitude'];
-                          detectedLongitude = coords['longitude'];
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: locationController,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        color: Color(0xFFf5f6fa),
+                      ),
+                      onChanged: (value) async {
+                        // Clear previous coordinates when user types
+                        detectedLatitude = null;
+                        detectedLongitude = null;
+                        
+                        // Debounce search
+                        if (searchDebounce?.isActive ?? false) {
+                          searchDebounce!.cancel();
                         }
-                      }
-                      isSearchingLocation = false;
-                    }
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Location (e.g., "Gateway of India, Mumbai")',
-                    labelStyle: const TextStyle(color: Color(0xFF9e9e9e)),
-                    filled: true,
-                    fillColor: const Color(0xFF1c1c1c),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isSearchingLocation)
-                          const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                        
+                        searchDebounce = Timer(const Duration(milliseconds: 500), () async {
+                          if (value.length > 2) {
+                            setModalState(() {
+                              isSearchingLocation = true;
+                            });
+                            
+                            // Search using TomTom
+                            final results = await tomtomService.searchLocations(
+                              value,
+                              lat: _userLocation?.latitude,
+                              lon: _userLocation?.longitude,
+                            );
+                            
+                            setModalState(() {
+                              locationSearchResults = results;
+                              isSearchingLocation = false;
+                            });
+                          } else {
+                            setModalState(() {
+                              locationSearchResults = [];
+                              isSearchingLocation = false;
+                            });
+                          }
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Search location',
+                        hintText: 'e.g., Gateway of India, Mumbai',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF6e6e6e),
+                          fontSize: 14,
+                        ),
+                        labelStyle: const TextStyle(color: Color(0xFF9e9e9e)),
+                        filled: true,
+                        fillColor: const Color(0xFF1c1c1c),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSearchingLocation)
+                              const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF06d6a0),
+                                  ),
+                                ),
+                              ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.my_location,
                                 color: Color(0xFF06d6a0),
                               ),
-                            ),
-                          ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.my_location,
-                            color: Color(0xFF06d6a0),
-                          ),
-                          tooltip: 'Use my current location',
-                          onPressed: () async {
+                              tooltip: 'Use my current location',
+                              onPressed: () async {
                         try {
                           // Get current location
                           bool hasPermission = await _locationService
@@ -824,9 +852,68 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                         }
                       },
                     ),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    
+                    // Search results dropdown
+                    if (locationSearchResults.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1c1c1c),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF06d6a0).withOpacity(0.3),
+                          ),
+                        ),
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: locationSearchResults.length,
+                          itemBuilder: (context, index) {
+                            final result = locationSearchResults[index];
+                            return ListTile(
+                              dense: true,
+                              leading: const Icon(
+                                Icons.location_on,
+                                color: Color(0xFF06d6a0),
+                                size: 20,
+                              ),
+                              title: Text(
+                                result.name,
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFFf5f6fa),
+                                ),
+                              ),
+                              subtitle: Text(
+                                result.address,
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  color: Color(0xFF9e9e9e),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                // Set location from search result
+                                setModalState(() {
+                                  locationController.text = result.name;
+                                  detectedLatitude = result.latitude;
+                                  detectedLongitude = result.longitude;
+                                  locationSearchResults = [];
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -1104,12 +1191,20 @@ class _LiveEventsMapScreenState extends State<LiveEventsMapScreen> {
                       if (context.mounted) {
                         Navigator.pop(context);
                         if (success) {
+                          // Add event to local list immediately
+                          setState(() {
+                            _events.add(event);
+                          });
+                          _addEventMarkers();
+                          
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Event added successfully!'),
                               backgroundColor: Color(0xFF06d6a0),
                             ),
                           );
+                          
+                          // Refresh in background to sync with server
                           _refreshEvents();
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
