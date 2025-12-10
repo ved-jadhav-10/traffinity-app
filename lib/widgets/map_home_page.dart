@@ -1830,7 +1830,7 @@ class _MapHomePageState extends State<MapHomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _openWebsite() async {
-    final url = Uri.parse('https://github.com/harshilbiyani');
+    final url = Uri.parse('https://github.com/anshdudhe15/New_Traffinity_Website');
 
     // Show confirmation dialog
     final shouldOpen = await showDialog<bool>(
