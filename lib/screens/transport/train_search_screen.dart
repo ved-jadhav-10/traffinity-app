@@ -264,7 +264,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
               onPressed: _isSearchingTrains ? null : _searchTrains,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF06d6a0),
-                foregroundColor: Colors.white,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -365,7 +365,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen>
                 onPressed: _isLoadingPNR ? null : _searchPNRStatus,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF06d6a0),
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

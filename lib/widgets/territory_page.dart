@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../screens/city_incident_map_screen.dart';
 import '../screens/civic_issue_map_screen.dart';
 import '../screens/live_events_map_screen.dart';
@@ -137,7 +138,7 @@ class _TerritoryPageState extends State<TerritoryPage> {
 
                 // Description
                 const Text(
-                  'Check city updates, report incidents, and explore.',
+                  'Check city updates, report incidents, and manage parking.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -208,13 +209,18 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 4. Explore Nearby
+                // 4. Explore Parking
                 _buildFeatureCard(
-                  icon: Icons.explore,
-                  title: 'Explore Nearby',
-                  description: 'Discover interesting places around you.',
+                  icon: Icons.local_parking,
+                  title: 'ParkHub Manager',
+                  description: 'Discover parking around you.',
                   color: const Color(0xFF4a90e2),
-                  onTap: widget.onExploreNearby,
+                  onTap: () async {
+                    final Uri url = Uri.parse('https://github.com/harshilbiyani');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
                 ),
                 const SizedBox(height: 100), // Extra padding for bottom nav
               ],

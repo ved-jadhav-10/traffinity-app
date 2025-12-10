@@ -29,7 +29,7 @@ class MapHomePage extends StatefulWidget {
   State<MapHomePage> createState() => _MapHomePageState();
 }
 
-class _MapHomePageState extends State<MapHomePage> {
+class _MapHomePageState extends State<MapHomePage> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   final TomTomService _tomtomService = TomTomService();
@@ -76,6 +76,7 @@ class _MapHomePageState extends State<MapHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeMap();
     _loadUserName();
     _initializeCompass();
@@ -84,10 +85,48 @@ class _MapHomePageState extends State<MapHomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchDebounce?.cancel();
     _searchController.dispose();
     _compassSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // When app resumes, check if location is now available
+      _checkAndUpdateLocation();
+    }
+  }
+
+  Future<void> _checkAndUpdateLocation() async {
+    bool hasPermission = await _locationService.checkAndRequestPermissions();
+    if (hasPermission && _currentLocation == null) {
+      Position? position = await _locationService.getCurrentLocation();
+      if (position != null && mounted) {
+        setState(() {
+          _currentLocation = LatLng(position.latitude, position.longitude);
+          _markers.add(
+            Marker(
+              point: _currentLocation!,
+              width: 40,
+              height: 40,
+              child: Transform.rotate(
+                angle: _compassHeading * (math.pi / 180),
+                child: const Icon(
+                  Icons.navigation,
+                  color: Color(0xFF06d6a0),
+                  size: 40,
+                ),
+              ),
+            ),
+          );
+        });
+        _mapController.move(_currentLocation!, 14.0);
+      }
+    }
   }
 
   Future<void> _initializeMap() async {

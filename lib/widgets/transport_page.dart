@@ -55,7 +55,7 @@ class _TransportPageState extends State<TransportPage> {
 
                 // Description
                 const Text(
-                  'Track routes, check your impact and plan sustainable trips efficiently.',
+                  'Track routes, check your impact and plan trips efficiently.',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -173,7 +173,7 @@ class _TransportPageState extends State<TransportPage> {
             ),
             const SizedBox(height: 16),
 
-            // Buses Option (Coming Soon)
+            // Buses Option
             _buildTransportOption(
               context: context,
               icon: Icons.directions_bus,
