@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../screens/city_incident_map_screen.dart';
 import '../screens/civic_issue_map_screen.dart';
 import '../screens/live_events_map_screen.dart';
+import '../screens/parking/parkhub_map_screen.dart';
 import '../services/location_service.dart';
 import '../services/live_event_service.dart';
 
@@ -229,17 +230,19 @@ class _TerritoryPageState extends State<TerritoryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 4. Explore Parking
+                // 4. ParkHub Manager
                 _buildFeatureCard(
                   icon: Icons.local_parking,
                   title: 'ParkHub Manager',
-                  description: 'Discover parking around you.',
+                  description: 'Find and book parking spots near you.',
                   color: const Color(0xFF4a90e2),
-                  onTap: () async {
-                    final Uri url = Uri.parse('https://github.com/harshilbiyani');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
-                    }
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ParkHubMapScreen(),
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(height: 100), // Extra padding for bottom nav
