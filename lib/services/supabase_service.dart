@@ -534,7 +534,9 @@ class SupabaseService {
   }) async {
     try {
       final user = currentUser;
-      if (user == null) throw 'User not authenticated';
+      if (user == null) {
+        throw Exception('Please sign in to report incidents');
+      }
 
       final incident = {
         'user_id': user.id,

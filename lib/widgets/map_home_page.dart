@@ -2140,7 +2140,13 @@ class _MapHomePageState extends State<MapHomePage> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar('Failed to report emergency: ${e.toString()}');
+        String errorMessage = 'Failed to report emergency';
+        if (e.toString().contains('sign in') || e.toString().contains('authenticated')) {
+          errorMessage = 'Please sign in to report incidents';
+        } else {
+          errorMessage = 'Failed to report emergency: ${e.toString()}';
+        }
+        _showSnackBar(errorMessage);
       }
     }
   }
