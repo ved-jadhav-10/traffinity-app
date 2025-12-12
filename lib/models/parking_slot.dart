@@ -1,23 +1,23 @@
+
 class ParkingSlot {
   final String id;
   final String layoutId;
   final String slotLabel; // e.g., "A-1", "B-10", "C-5"
-  final String? vehicleTypeId;
+  final String vehicleType; // '2-Wheeler', '4-Wheeler', or 'HMV'
   final String status; // 'available', 'reserved', 'occupied', 'maintenance'
   final DateTime createdAt;
-
-  // Optional: Populated when joined with vehicle_types
-  final String? vehicleTypeName;
 
   ParkingSlot({
     required this.id,
     required this.layoutId,
     required this.slotLabel,
-    this.vehicleTypeId,
+    required this.vehicleType,
     required this.status,
     required this.createdAt,
-    this.vehicleTypeName,
   });
+
+  // Check if slot has valid vehicle type assignment
+  bool get hasVehicleType => vehicleType.isNotEmpty;
 
   // Check status
   bool get isAvailable => status == 'available';
@@ -66,10 +66,9 @@ class ParkingSlot {
       id: json['id'] as String,
       layoutId: json['layout_id'] as String,
       slotLabel: json['slot_label'] as String,
-      vehicleTypeId: json['vehicle_type_id'] as String?,
+      vehicleType: json['vehicle_type'] as String? ?? '4-Wheeler',
       status: json['status'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
-      vehicleTypeName: json['vehicle_type_name'] as String?, // From joined query
     );
   }
 
@@ -79,11 +78,28 @@ class ParkingSlot {
       'id': id,
       'layout_id': layoutId,
       'slot_label': slotLabel,
-      'vehicle_type_id': vehicleTypeId,
+      'vehicle_type': vehicleType,
       'status': status,
       'created_at': createdAt.toIso8601String(),
-      if (vehicleTypeName != null) 'vehicle_type_name': vehicleTypeName,
     };
+  }
+
+  // Get vehicle type display with icon
+  String getVehicleTypeDisplay() {
+    return vehicleType;
+  }
+
+  // Get icon for vehicle type
+  String getVehicleTypeIcon() {
+    final name = vehicleType.toLowerCase();
+    if (name.contains('2') || name.contains('two') || name.contains('bike') || name.contains('scooter')) {
+      return '🏍️';
+    } else if (name.contains('4') || name.contains('four') || name.contains('car') || name.contains('sedan')) {
+      return '🚗';
+    } else if (name.contains('hmv') || name.contains('heavy') || name.contains('truck') || name.contains('bus')) {
+      return '🚚';
+    }
+    return '🚗';
   }
 
   // Copy with method
@@ -91,25 +107,23 @@ class ParkingSlot {
     String? id,
     String? layoutId,
     String? slotLabel,
-    String? vehicleTypeId,
+    String? vehicleType,
     String? status,
     DateTime? createdAt,
-    String? vehicleTypeName,
   }) {
     return ParkingSlot(
       id: id ?? this.id,
       layoutId: layoutId ?? this.layoutId,
       slotLabel: slotLabel ?? this.slotLabel,
-      vehicleTypeId: vehicleTypeId ?? this.vehicleTypeId,
+      vehicleType: vehicleType ?? this.vehicleType,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
-      vehicleTypeName: vehicleTypeName ?? this.vehicleTypeName,
     );
   }
 
   @override
   String toString() {
-    return 'ParkingSlot(id: $id, label: $slotLabel, status: $status, vehicleType: ${vehicleTypeName ?? "N/A"})';
+    return 'ParkingSlot(id: $id, label: $slotLabel, status: $status, vehicleType: $vehicleType)';
   }
 
   @override

@@ -66,26 +66,18 @@ class ParkingService {
   /// Get all parking slots for a specific layout with vehicle type info
   Future<List<ParkingSlot>> getParkingSlots(String layoutId) async {
     try {
-      final response = await _supabase
+      final slotsResponse = await _supabase
           .from('parking_slots')
-          .select('''
-            *,
-            vehicle_types!parking_slots_vehicle_type_id_fkey(name)
-          ''')
+          .select()
           .eq('layout_id', layoutId)
           .order('slot_label');
+      
+      final slotsData = slotsResponse as List;
 
-      return (response as List).map((json) {
-        // Extract vehicle type name from joined data
-        final vehicleTypeName = json['vehicle_types'] != null
-            ? json['vehicle_types']['name'] as String?
-            : null;
-
-        return ParkingSlot.fromJson({
-          ...json,
-          'vehicle_type_name': vehicleTypeName,
-        });
-      }).toList();
+      return slotsData
+          .map((json) => ParkingSlot.fromJson(json))
+          .where((slot) => slot.hasVehicleType)
+          .toList();
     } catch (e) {
       print('Error fetching parking slots: $e');
       rethrow;
@@ -146,7 +138,7 @@ class ParkingService {
       final response = await _supabase
           .from('vehicle_types')
           .select()
-          .eq('layout_id', layoutId)
+          .eq('parking_layout_id', layoutId)
           .order('name');
 
       return (response as List)
@@ -184,7 +176,7 @@ class ParkingService {
     required String slotId,
     required String vehicleNumber,
     required String vehicleType,
-    required String vehicleTypeId,
+    String? vehicleTypeId,
     required int duration,
     required DateTime bookingStartTime,
   }) async {
@@ -249,7 +241,7 @@ class ParkingService {
                 location
               )
             ),
-            vehicle_types(price)
+            vehicle_types(price_per_hour)
           ''')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
@@ -265,7 +257,7 @@ class ParkingService {
           'slot_label': slot?['slot_label'],
           'parking_layout_name': layout?['name'],
           'parking_location': layout?['location'],
-          'price_per_hour': vehicleTypeData?['price'],
+          'price_per_hour': vehicleTypeData?['price_per_hour'],
         });
       }).toList();
     } catch (e) {

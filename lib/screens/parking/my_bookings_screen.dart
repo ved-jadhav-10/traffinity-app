@@ -75,6 +75,35 @@ class _MyBookingsScreenState extends State<MyBookingsScreen>
     _realtimeSubscription = _parkingService.subscribeToBookingUpdates(
       (bookings) {
         if (mounted) {
+          // Check for newly approved bookings
+          final newlyApproved = bookings.where((newBooking) {
+            final oldBooking = _allBookings.firstWhere(
+              (b) => b.id == newBooking.id,
+              orElse: () => newBooking,
+            );
+            return oldBooking.isPending && newBooking.isApproved;
+          }).toList();
+
+          // Show notification for each newly approved booking
+          for (final booking in newlyApproved) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '✓ Your booking for ${booking.parkingLayoutName ?? "parking"} - Spot ${booking.slotLabel} has been approved!',
+                ),
+                backgroundColor: const Color(0xFF06d6a0),
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'VIEW',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    _tabController.animateTo(0); // Switch to Active tab
+                  },
+                ),
+              ),
+            );
+          }
+
           setState(() {
             _allBookings = bookings;
             _categorizeBookings();

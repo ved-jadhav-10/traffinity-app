@@ -17,8 +17,11 @@ class ParkingLayoutScreen extends StatefulWidget {
 class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
   final ParkingService _parkingService = ParkingService();
   List<ParkingSlot> _slots = [];
+  List<ParkingSlot> _filteredSlots = [];
   bool _isLoading = true;
   StreamSubscription? _realtimeSubscription;
+  String? _selectedVehicleTypeFilter; // null means "All"
+  List<String> _availableVehicleTypes = [];
 
   @override
   void initState() {
@@ -39,6 +42,12 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
       if (mounted) {
         setState(() {
           _slots = slots;
+          _filteredSlots = slots;
+          _availableVehicleTypes = slots
+              .map((s) => s.vehicleType)
+              .toSet()
+              .toList()
+            ..sort();
           _isLoading = false;
         });
       }
@@ -56,6 +65,19 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
     }
   }
 
+  void _applyFilter(String? vehicleType) {
+    setState(() {
+      _selectedVehicleTypeFilter = vehicleType;
+      if (vehicleType == null) {
+        _filteredSlots = _slots;
+      } else {
+        _filteredSlots = _slots
+            .where((slot) => slot.vehicleType == vehicleType)
+            .toList();
+      }
+    });
+  }
+
   void _subscribeToUpdates() {
     _realtimeSubscription = _parkingService.subscribeToSlotUpdates(
       widget.layout.id,
@@ -63,6 +85,19 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
         if (mounted) {
           setState(() {
             _slots = slots;
+            _availableVehicleTypes = slots
+                .map((s) => s.vehicleType)
+                .toSet()
+                .toList()
+              ..sort();
+            // Reapply filter
+            if (_selectedVehicleTypeFilter == null) {
+              _filteredSlots = slots;
+            } else {
+              _filteredSlots = slots
+                  .where((slot) => slot.vehicleType == _selectedVehicleTypeFilter)
+                  .toList();
+            }
           });
         }
       },
@@ -183,6 +218,42 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
               ),
             ),
 
+            // Vehicle Type Filter
+            if (_availableVehicleTypes.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filter by Vehicle Type',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF9e9e9e),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip('All', null),
+                          const SizedBox(width: 8),
+                          ..._availableVehicleTypes.map((type) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _buildFilterChip(type, type),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Parking slots grid
             Expanded(
               child: _isLoading
@@ -191,7 +262,7 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
                         color: Color(0xFF06d6a0),
                       ),
                     )
-                  : _slots.isEmpty
+                  : _filteredSlots.isEmpty
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -202,9 +273,11 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
                                 color: const Color(0xFF9e9e9e).withOpacity(0.5),
                               ),
                               const SizedBox(height: 16),
-                              const Text(
-                                'No parking slots available',
-                                style: TextStyle(
+                              Text(
+                                _selectedVehicleTypeFilter != null
+                                    ? 'No $_selectedVehicleTypeFilter slots'
+                                    : 'No parking slots available',
+                                style: const TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 16,
                                   color: Color(0xFF9e9e9e),
@@ -226,9 +299,9 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
                               mainAxisSpacing: 12,
                               childAspectRatio: 0.85,
                             ),
-                            itemCount: _slots.length,
+                            itemCount: _filteredSlots.length,
                             itemBuilder: (context, index) {
-                              final slot = _slots[index];
+                              final slot = _filteredSlots[index];
                               return _buildSlotCard(slot);
                             },
                           ),
@@ -249,22 +322,22 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
                 children: [
                   _buildCountItem(
                     'Total',
-                    _slots.length,
+                    _filteredSlots.length,
                     const Color(0xFF9e9e9e),
                   ),
                   _buildCountItem(
                     'Available',
-                    _slots.where((s) => s.isAvailable).length,
+                    _filteredSlots.where((s) => s.isAvailable).length,
                     const Color(0xFF06d6a0),
                   ),
                   _buildCountItem(
                     'Reserved',
-                    _slots.where((s) => s.isReserved).length,
+                    _filteredSlots.where((s) => s.isReserved).length,
                     const Color(0xFFffa726),
                   ),
                   _buildCountItem(
                     'Occupied',
-                    _slots.where((s) => s.isOccupied).length,
+                    _filteredSlots.where((s) => s.isOccupied).length,
                     const Color(0xFFf54248),
                   ),
                 ],
@@ -317,19 +390,22 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            // Vehicle type
-            if (slot.vehicleTypeName != null)
-              Text(
-                slot.vehicleTypeName!,
-                style: const TextStyle(
+            // Vehicle type - now more prominent
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                slot.vehicleType,
+                style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 10,
-                  color: Color(0xFF9e9e9e),
+                  fontWeight: FontWeight.w600,
+                  color: isClickable ? const Color(0xFFf5f6fa) : const Color(0xFF9e9e9e),
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
             const SizedBox(height: 4),
             // Status icon
             Icon(
@@ -344,6 +420,39 @@ class _ParkingLayoutScreenState extends State<ParkingLayoutScreen> {
               size: 16,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String? filterValue) {
+    final isSelected = _selectedVehicleTypeFilter == filterValue;
+    return GestureDetector(
+      onTap: () => _applyFilter(filterValue),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF06d6a0)
+              : const Color(0xFF2a2a2a),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF06d6a0)
+                : const Color(0xFF3a3a3a),
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected
+                ? Colors.white
+                : const Color(0xFFf5f6fa),
+          ),
         ),
       ),
     );

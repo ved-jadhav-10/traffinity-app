@@ -18,6 +18,7 @@ import '../screens/auth/sign_in_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/collections/collections_screen.dart';
 import '../screens/feedback/feedback_screen.dart';
+import '../screens/parking/my_bookings_screen.dart';
 import 'transport_page.dart';
 import 'territory_page.dart';
 import 'live_navigation_screen.dart';
@@ -1707,6 +1708,29 @@ class _MapHomePageState extends State<MapHomePage> with WidgetsBindingObserver {
                   _navigateToProfile();
                 },
               ),
+
+              ListTile(
+                leading: const Icon(Icons.book_online, color: Color(0xFF06d6a0)),
+                title: const Text(
+                  'ParkHub Bookings',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: Color(0xFFf5f6fa),
+                    fontSize: 15,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MyBookingsScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              const Divider(color: Color(0xFF3a3a3a), height: 1),
 
               ListTile(
                 leading: const Icon(Icons.favorite, color: Color(0xFF06d6a0)),

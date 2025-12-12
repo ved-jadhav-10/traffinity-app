@@ -24,8 +24,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _vehicleNumberController = TextEditingController();
 
-  List<VehicleType> _vehicleTypes = [];
-  VehicleType? _selectedVehicleType;
+  VehicleType? _slotVehicleType; // For pricing information
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   int _selectedDuration = 1;
@@ -35,7 +34,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   @override
   void initState() {
     super.initState();
-    _loadVehicleTypes();
+    _loadVehicleTypeForPricing();
   }
 
   @override
@@ -44,27 +43,44 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     super.dispose();
   }
 
-  Future<void> _loadVehicleTypes() async {
+  Future<void> _loadVehicleTypeForPricing() async {
     try {
+      // Get vehicle type for pricing information
       final types = await _parkingService.getVehicleTypes(widget.layout.id);
+      
+      if (types.isEmpty) {
+        // If no vehicle types exist, just mark as loaded (pricing will be unavailable)
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+      
+      // Find matching vehicle type for pricing
+      VehicleType? vehicleType;
+      try {
+        vehicleType = types.firstWhere(
+          (t) => t.name == widget.slot.vehicleType,
+        );
+      } catch (e) {
+        // If exact match not found, try to find a similar one
+        vehicleType = types.firstWhere(
+          (t) => t.name.toLowerCase().contains(widget.slot.vehicleType.toLowerCase()) ||
+                 widget.slot.vehicleType.toLowerCase().contains(t.name.toLowerCase()),
+          orElse: () => types.first,
+        );
+      }
+      
       if (mounted) {
         setState(() {
-          _vehicleTypes = types;
-          // Pre-select vehicle type if slot has one assigned
-          if (widget.slot.vehicleTypeId != null) {
-            _selectedVehicleType = types.firstWhere(
-              (t) => t.id == widget.slot.vehicleTypeId,
-              orElse: () => types.first,
-            );
-          } else if (types.isNotEmpty) {
-            _selectedVehicleType = types.first;
-          }
+          _slotVehicleType = vehicleType;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading vehicle types: $e');
+      print('Error loading vehicle type pricing: $e');
       if (mounted) {
+        // Mark as loaded even if pricing fetch fails
         setState(() => _isLoading = false);
       }
     }
@@ -151,23 +167,14 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   }
 
   double? get _totalPrice {
-    if (_selectedVehicleType != null) {
-      return _selectedVehicleType!.calculateTotalPrice(_selectedDuration);
+    if (_slotVehicleType != null) {
+      return _slotVehicleType!.calculateTotalPrice(_selectedDuration);
     }
     return null;
   }
 
   Future<void> _submitBooking() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedVehicleType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a vehicle type'),
-          backgroundColor: Color(0xFFf54248),
-        ),
-      );
-      return;
-    }
 
     setState(() => _isSubmitting = true);
 
@@ -187,8 +194,8 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       await _parkingService.createBooking(
         slotId: widget.slot.id,
         vehicleNumber: _vehicleNumberController.text.trim(),
-        vehicleType: _selectedVehicleType!.name,
-        vehicleTypeId: _selectedVehicleType!.id,
+        vehicleType: widget.slot.vehicleType,
+        vehicleTypeId: _slotVehicleType?.id,
         duration: _selectedDuration,
         bookingStartTime: _bookingStartTime,
       );
@@ -197,9 +204,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Booking submitted! Waiting for admin approval.'),
+            content: Text('Booking submitted! Check "My Bookings" for approval status.'),
             backgroundColor: Color(0xFF06d6a0),
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 4),
           ),
         );
 
@@ -381,9 +388,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Vehicle Type
+                            // Vehicle Type - Read Only Display
                             const Text(
-                              'Vehicle Type',
+                              'Slot Type',
                               style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 14,
@@ -393,47 +400,81 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                             ),
                             const SizedBox(height: 8),
                             Container(
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2a2a2a),
+                                color: const Color(0xFF06d6a0).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFF3a3a3a)),
+                                border: Border.all(color: const Color(0xFF06d6a0)),
                               ),
-                              child: DropdownButtonFormField<VehicleType>(
-                                value: _selectedVehicleType,
-                                dropdownColor: const Color(0xFF2a2a2a),
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Color(0xFFf5f6fa),
-                                ),
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                                ),
-                                items: _vehicleTypes.map((type) {
-                                  return DropdownMenuItem(
-                                    value: type,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(type.name),
-                                        Text(
-                                          type.formattedPrice,
-                                          style: const TextStyle(
-                                            color: Color(0xFF06d6a0),
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF06d6a0),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
-                                      ],
+                                        child: Icon(
+                                          _slotVehicleType?.name.toLowerCase().contains('2') ?? false
+                                              ? Icons.two_wheeler
+                                              : _slotVehicleType?.name.toLowerCase().contains('bike') ?? false
+                                                  ? Icons.two_wheeler
+                                                  : _slotVehicleType?.name.toLowerCase().contains('truck') ?? false
+                                                      ? Icons.local_shipping
+                                                      : Icons.directions_car,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _slotVehicleType?.name ?? 'Loading...',
+                                            style: const TextStyle(
+                                              fontFamily: 'Poppins',
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFf5f6fa),
+                                            ),
+                                          ),
+                                          if (_slotVehicleType != null)
+                                            Text(
+                                              _slotVehicleType!.formattedPrice,
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 12,
+                                                color: Color(0xFF9e9e9e),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
                                     ),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedVehicleType = value;
-                                  });
-                                },
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF06d6a0),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      'Assigned',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -666,7 +707,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
 
                             // Info text
                             const Text(
-                              'Your booking will be pending until approved by the parking admin. You will receive an email once approved.',
+                              'Your booking will be pending until approved by the parking admin. Check "My Bookings" for real-time status updates.',
                               style: TextStyle(
                                 fontFamily: 'Poppins',
                                 fontSize: 12,
